@@ -1,0 +1,169 @@
+---
+date: "12/7/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Having decided in the previous file (`01_first_models_and_transformations`) that a square-root transformation of the response was most appropriate, all models in this file will be based on such a transformation.  
+
+In that file I did not see a difference between model outputs between the predictors `sensor_ugl` vs. `sensor_rfu`, so to fit with previous conversations by the workgroup, I'll proceed using only `sensor_rfu`.  
+
+Finally, there was very little difference in model fit when including `method` (tank vs. ISCO) as when excluding it, so we do not need to include it as a variable. AIC was a bit improved without it.  
+
+The rest of this file will focus on other variable selection.  
+
+```{r, warning = FALSE, message = FALSE}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(patchwork)
+```
+
+```{r}
+dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
+                 sheet = "qaqc") %>% 
+    mutate(extracted = chla_ugl,
+           sensor_rfu = chlorophyll_rfu,
+           sensor_ugl = chl_fluor,
+           month = lubridate::month(datetime_collected)) %>% 
+    select(reserve = reserve_code,
+           sample_no,
+           station_code,
+           datetime_collected,
+           month,
+           extracted,
+           sensor_rfu,
+           temp,
+           sal,
+           turb,
+           fdom_qsu,
+           do_mgl,
+           do_pct) %>% 
+    filter(!is.na(extracted),
+           !is.na(sensor_rfu))  # can probably work around other NAs, but HAVE to have both chlorophyll measurements  
+
+summary(dat)
+nrow(dat)
+```
+
+# Full model  
+
+...excluding DO in all preliminary things, might add in later to see? But this is the full model that gave me the best (*most okay*) fit in the previous file.
+
+sqrt(chl_extracted) ~ sensor_rfu + turbidity + fdom + turb*fdom + temp + salinity + month + reserve
+
+```{r}
+fit_full <- lm(sqrt(extracted) ~ sensor_rfu + turb + fdom_qsu + turb*fdom_qsu + temp + sal + as.factor(month) + as.factor(reserve), data = dat)
+
+broom::glance(fit_full)
+
+
+all_big <- dat %>% 
+    filter(!is.na((extracted & sensor_rfu & turb & 
+                       fdom_qsu & temp & sal)))
+
+all_big$fitted <- fitted.values(fit_full)
+
+ggplot(all_big) +
+    geom_abline(slope = 1, intercept = 0) +
+    geom_point(aes(x = fitted, y = extracted, col = reserve)) +
+    facet_wrap(~month, ncol = 4) +
+    labs(x = "fitted",
+         y = "observed",
+         title = "All months",
+         subtitle = paste(fit_full$call[2],
+                          "\nAdjusted R^2:",
+                          round(summary(fit_full)$adj.r.squared, 3),
+                          "\nAIC:",
+                          round(AIC(fit_full), 2)))
+
+```
+
+From the different viewing I did of models in the `01` file, it looked like the turb*FDOM interaction could be dropped from the model. So I'll do a few models without that.  
+
+I'd also love to drop reserve and month. Let's see if dropping those three things still gets us a reasonable fit.  
+
+# Reduced 1 - drop only the turb*fdom interaction  
+
+```{r}
+fit_red1 <- lm(sqrt(extracted) ~ sensor_rfu + turb + fdom_qsu + temp + sal + as.factor(month) + as.factor(reserve), data = dat)
+
+broom::glance(fit_red1)
+```
+
+That's about as good and even better by a couple of AIC points. So I won't bring the interaction in and out; we'll just leave it out moving forward.  
+
+# Reduced 2 - drop temp and sal; keep month and reserve  
+
+
+```{r}
+fit_red2 <- lm(sqrt(extracted) ~ sensor_rfu + turb + fdom_qsu + as.factor(month) + as.factor(reserve), data = dat)
+
+broom::glance(fit_red2)
+```
+
+A little worse, but not much.    
+
+# Reduced 3 - drop month too  
+
+```{r}
+fit_red3 <- lm(sqrt(extracted) ~ sensor_rfu + turb + fdom_qsu + as.factor(reserve), data = dat)
+
+broom::glance(fit_red3)
+```
+  
+month turns out to be important
+
+
+# Reduced 4 - month is back; drop reserve  
+
+```{r}
+fit_red4 <- lm(sqrt(extracted) ~ sensor_rfu + turb + fdom_qsu + as.factor(month), data = dat)
+
+broom::glance(fit_red4)
+```
+
+Noooope. Reserve needs to stay in.  
+
+
+# Reduced 5 - drop FDOM  
+
+Please, we can save $4k if we don't need FDOM! Month and Reserve are in this one because they seem to matter.  
+
+```{r}
+fit_red5 <- lm(sqrt(extracted) ~ sensor_rfu + turb +  as.factor(month) + as.factor(reserve), data = dat)
+
+broom::glance(fit_red5)
+```
+
+Adjusted R^2 isn't bad, but AIC got worse. This might not be a clear answer.  
+
+......and it may depend on reserve:  
+
+# Reduced-ish 6: include FDOM*Reserve interaction  
+
+```{r}
+fit_red6 <- lm(sqrt(extracted) ~ sensor_rfu + turb + fdom_qsu + as.factor(reserve) + fdom_qsu*as.factor(reserve), data = dat)
+
+broom::glance(fit_red6)
+```
+
+Not the greatest. Not the worst. Probably have to evaluate on a reserve-level basis.  
+
+# Reduced 7 - only reserve/month, not turb/fdom?  
+
+I'd be surprised if this isn't terrible.....
+
+```{r}
+fit_red7 <- lm(sqrt(extracted) ~ sensor_rfu + as.factor(month) + as.factor(reserve), data = dat)
+
+broom::glance(fit_red7)
+```
+
+Hm. That adjusted R^2 is almost as good as the original. AIC is a fair amount worse.  
+
+I think this is all pointing to FDOM - and possibly turbidity - as reserve-dependent predictors.  

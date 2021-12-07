@@ -1,0 +1,345 @@
+---
+date: "12/6/2021"
+output: 
+    html_document:
+        toc: true
+        code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message = FALSE}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(patchwork)
+```
+
+```{r}
+dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
+                 sheet = "qaqc") %>% 
+    mutate(extracted = chla_ugl,
+           sensor_rfu = chlorophyll_rfu,
+           sensor_ugl = chl_fluor,
+           month = lubridate::month(datetime_collected)) %>% 
+    filter(!is.na(month))
+```
+
+```{r}
+ggplot(dat) +
+    geom_abline(slope = 1, intercept = 0, col = "gray60") +
+    geom_point(aes(x = sensor_ugl, y = extracted, 
+                   col = reserve_code),
+               size = 2, alpha = 0.5) +
+    facet_wrap(~month, ncol = 4) +
+    # geom_smooth(aes(x = sensor_ugl, y = extracted)) +
+    theme_bw() + 
+    labs(title = "Extracted vs. sensor chl, ug/L, by month")
+```
+
+
+# "Big" model  
+
+chl_extracted ~ sensor_rfu + turbidity + fdom + turb*fdom + temp + salinity + method + month + reserve
+
+```{r}
+fit_big <- lm(extracted ~ sensor_rfu + turb + fdom_qsu + turb*fdom_qsu + temp + sal + as.factor(method) + as.factor(month) + as.factor(reserve_code), data = dat)
+
+broom::tidy(fit_big)
+broom::glance(fit_big)
+
+fitted <- fitted.values(fit_big)
+all_big <- dat %>% 
+    filter(!is.na(turb),
+           !is.na(fdom_qsu),
+           !is.na(sensor_rfu),
+           !is.na(temp),
+           !is.na(sal),
+           !is.na(extracted))
+all_big$fitted <- fitted.values(fit_big)
+
+ggplot(all_big) +
+    geom_abline(slope = 1, intercept = 0) +
+    geom_point(aes(x = fitted, y = extracted, col = reserve_code)) +
+    facet_wrap(~month, ncol = 4) +
+    labs(x = "fitted",
+         y = "observed",
+         title = "All months",
+         subtitle = paste(fit_big$call[2],
+                          "\nAdjusted R^2:",
+                          round(summary(fit_big)$adj.r.squared, 3),
+                          "\nAIC:",
+                          round(AIC(fit_big), 2)))
+
+plot(fit_big)
+```
+
+
+Residuals vs. fitted plot for the big fit above makes a funnel. Sometimes transforming the response can help......
+
+```{r}
+fit_big_sqrt <- lm(sqrt(extracted) ~ sensor_rfu + turb + fdom_qsu + turb*fdom_qsu + temp + sal + as.factor(method) +as.factor(month) + as.factor(reserve_code), data = dat)
+
+plot(fit_big_sqrt)
+```
+
+Square root transformation helps a lot, actually. Hm. Not for normality, but for the funneling, definitely.  
+
+```{r}
+fit_big_frthrt <- lm((extracted^0.25) ~ sensor_rfu + turb + fdom_qsu + turb*fdom_qsu + temp + sal + as.factor(method) + as.factor(month) + as.factor(reserve_code), data = dat)
+
+plot(fit_big_frthrt)
+```
+
+Don't think a fourth-root does any better than square-root. Maybe a little, when it comes to the funneling of residuals.  
+
+```{r}
+fit_big_log <- lm(log(extracted) ~ sensor_rfu + turb + fdom_qsu + turb*fdom_qsu + temp + sal + as.factor(method) + as.factor(month) + as.factor(reserve_code), data = dat)
+
+plot(fit_big_log)
+```
+
+Comparable to fourth-root, I think.....  if I had to choose between the two, I'd choose fourth-root over log because log(0) doesn't exist and that could cause problems down the road.  
+
+```{r}
+hist(resid(fit_big), breaks = 30)
+hist(resid(fit_big_sqrt), breaks = 30)
+hist(resid(fit_big_frthrt), breaks = 30)
+hist(resid(fit_big_log), breaks = 30)
+```
+
+Log may help a little more than square root with normality of residuals, but could potentially be more complicated for the end user.  
+
+Add predicted values into data frame:   
+
+```{r}
+all_big$fitted_log <- exp(fitted.values(fit_big_log))
+all_big$fitted_sqrt <- (fitted.values(fit_big_sqrt))^2
+all_big$fitted_frthrt <- (fitted.values(fit_big_frthrt))^4
+```
+
+Plot the fits by observed:  
+
+```{r}
+p1 <- ggplot(all_big) +
+    geom_abline(slope = 1, intercept = 0) +
+    geom_point(aes(x = fitted_log, y = extracted, col = reserve_code)) +
+    labs(x = "fitted",
+         y = "observed",
+         title = "Log-transformed response",
+         subtitle = paste(fit_big_log$call[2],
+                          "\nAdjusted R^2:",
+                          round(summary(fit_big_log)$adj.r.squared, 3),
+                          "\nAIC:",
+                          round(AIC(fit_big_log), 2)))
+
+p2 <- ggplot(all_big) +
+    geom_abline(slope = 1, intercept = 0) +
+    geom_point(aes(x = fitted_frthrt, y = extracted, col = reserve_code)) +
+    labs(x = "fitted",
+         y = "observed",
+         title = "Fourth root-transformed response",
+         subtitle = paste(fit_big_frthrt$call[2],
+                          "\nAdjusted R^2:",
+                          round(summary(fit_big_frthrt)$adj.r.squared, 3),
+                          "\nAIC:",
+                          round(AIC(fit_big_frthrt), 2)))
+
+
+p3 <- ggplot(all_big) +
+    geom_abline(slope = 1, intercept = 0) +
+    geom_point(aes(x = fitted_sqrt, y = extracted, col = reserve_code)) +
+    labs(x = "fitted",
+         y = "observed",
+         title = "Square root-transformed response",
+         subtitle = paste(fit_big_sqrt$call[2],
+                          "\nAdjusted R^2:",
+                          round(summary(fit_big_sqrt)$adj.r.squared, 3),
+                          "\nAIC:",
+                          round(AIC(fit_big_sqrt), 2)))
+
+p1 / p2 / p3
+```
+
+Square root is still my favorite, especially looking at how the predictions come out. The high outliers come out closest to "true" (though still pretty low), and the scatter around the 1:1 line is better towards the high end than with the others.   
+
+All of the transformations cut off predictions at 0, which the untransformed model didn't do (I don't remember if I even graphed that one? There were negative predicted values at the low end of the rfu readings.)  
+
+Let's look more closely at the square-root transformation's predictions, by month:  
+
+
+```{r}
+ggplot(all_big) +
+    geom_abline(slope = 1, intercept = 0) +
+    geom_point(aes(x = fitted_sqrt, y = extracted, col = reserve_code),
+               size = 2, alpha = 0.5) +
+    facet_wrap(~month, ncol = 4) +
+    labs(x = "fitted",
+         y = "observed",
+         title = "Square root-transformed response",
+         subtitle = paste(fit_big_sqrt$call[2],
+                          "\nAdjusted R^2:",
+                          round(summary(fit_big_sqrt)$adj.r.squared, 3),
+                          "\nAIC:",
+                          round(AIC(fit_big_sqrt), 2)))
+
+```
+
+It does better for August than the other models do.  
+
+
+
+### Root Mean Square Error  
+
+....of predictions. In `summary(fit)`, `Residual Standard Error` = `sigma` (`broom::glance` output) = RMSE of model. When the response variable was transformed, *this sigma was on the transformed scale*. So here I'll calculate RMSE for predictions that have been back-transformed to the original scale.  
+
+```{r}
+rmse_fun <- function(observed, predicted){
+    # check to make sure vectors are the same length
+    
+    # something about NAs - don't want any
+    
+    sqrt(mean((predicted - observed)^2))
+}
+```
+
+```{r}
+(rmse_big_fit <- rmse_fun(all_big$extracted, all_big$fitted))
+(rmse_log_fit <- rmse_fun(all_big$extracted, all_big$fitted_log))
+(rmse_frthrt_fit <- rmse_fun(all_big$extracted, all_big$fitted_frthrt))
+(rmse_sqrt_fit <- rmse_fun(all_big$extracted, all_big$fitted_sqrt))
+```
+
+Of the transformed ones, square-root does the best. Not too much worse than the untransformed model.  
+
+ALRIGHT. So square-root is the way to go.  
+
+### more residual checks  
+
+After all that, make plots of residuals by each predictor, just to make sure all's well.  
+
+```{r}
+sqresids <- resid(fit_big_sqrt)
+
+plot(sqresids ~ all_big$sensor_rfu)
+plot(sqresids ~ all_big$turb)
+plot(sqresids ~ all_big$fdom_qsu)
+plot(sqresids ~ all_big$temp)
+plot(sqresids ~ all_big$sal)
+boxplot(sqresids ~ all_big$method)
+abline(h = 0, col = "red")
+boxplot(sqresids ~ all_big$month)
+abline(h = 0, col = "red")
+boxplot(sqresids ~ all_big$reserve_code)
+abline(h = 0, col = "red")
+
+```
+
+# Tank vs. ISCO  
+
+Do I need to keep 'method' in the model? Before proceeding with other model fitting, need to find out. Would be great if I don't need it.  
+
+```{r}
+fit_reduced <- lm(sqrt(extracted) ~ sensor_rfu + turb + fdom_qsu + turb*fdom_qsu + temp + sal + as.factor(month) + as.factor(reserve_code), data = dat)
+
+```
+
+### Diagnostics - full model  
+
+```{r}
+broom::glance(fit_big_sqrt)
+```
+
+### Diagnostics - reduced model  
+
+(method removed)  
+
+```{r}
+broom::glance(fit_reduced)
+```
+
+```{r}
+AIC(fit_big_sqrt, fit_reduced)
+```
+
+
+Essentially the same fit. We don't need to include method for tank vs. isco. Hooray!  
+
+
+# Simplest models - sensor values only  
+
+Unsure if there's a difference between sensor RFU and sensor ug/L predictive ability - based on pairs plots, seems like there's pretty much a 1:1 correlation. But to be sure, let's only use rows where both exist.  
+
+```{r}
+sensor_all <- dat %>% 
+    select(reserve_code, extracted, 
+           sensor_rfu, sensor_ugl) %>% 
+    drop_na()
+
+fit_rfu <- lm(extracted ~ sensor_rfu, data = sensor_all)
+fit_ugl <- lm(extracted ~ sensor_ugl, data = sensor_all)
+
+broom::glance(fit_rfu)
+broom::glance(fit_ugl)
+
+broom::tidy(fit_rfu)
+broom::tidy(fit_ugl)
+```
+
+Some teeny differences but I suspect that's due to units and rounding. So I'll keep using rfu moving forward.  
+
+# Other EDA  
+
+### When is data missing?  
+
+```{r}
+subdat <- dat %>% 
+    select(reserve_code, month, method,
+           extracted, sensor_rfu, sensor_ugl,
+           temp, sal, fdom_qsu, fdom_rfu,
+           turb)
+summary(subdat)
+```
+
+What's up with the NAs for extracted?
+
+```{r}
+subdat %>% 
+    filter(is.na(extracted)) %>% 
+    knitr::kable()
+```
+
+*sigh* mostly qa/qc decisions; numbers are there in the raw spreadsheet and some of the ones missing an extracted value have really high FDOM but were rejected because the stirbar stopped spinning. Personally I"m not convinced that's enough to chuck the numbers but I guess the decision isn't mine.  
+
+So what does the summary look like if we remove the rows where there's no extracted data?  
+
+```{r}
+subdat %>% 
+    filter(!is.na(extracted)) %>% 
+    summary()
+```
+
+Let's see what's missing in sensor_rfu:  
+
+```{r}
+subdat %>% 
+    filter(!is.na(extracted),
+           is.na(sensor_rfu)) %>% 
+    knitr::kable()
+```
+
+Most of it looks like a calbration (or more) was done for chl_ugl, but not chl_rfu on the TAL sensor. These are all really low values. Wonder if we can convert back from ugl to rfu using the correlation, because the low values could be useful in the bigger regressions. Most of these are also missing FDOM though.....  
+
+Okay, what if we keep only rows that have both extracted and rfu, how much do we have to work with given other parameters?  
+
+```{r}
+subdat %>% 
+    filter(!is.na(extracted),
+           !is.na(sensor_rfu)) %>% 
+    summary()
+```
+
+86 missings for fdom_qsu. 7 missings for turbidity. 
