@@ -1,0 +1,92 @@
+---
+date: "12/8/2021"
+output: 
+    html_document:
+        code_folding: hide
+        toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+The previous files had some extensive EDA. I did not, however, include interactions between `sensor_rfu` and anything else, adn this may be important. May also change some things, but might not.  
+
++  Square-root transformation of the response variable (`extracted`) seemed most appropriate (see `01_first_models_and_transformations`). This will be reexamined.      
++  In that file I did not see a difference between model outputs between the predictors `sensor_ugl` vs. `sensor_rfu`, so to fit with previous conversations by the workgroup, I'll proceed using only `sensor_rfu`. This should still be valid even though interactions weren't included.  
++  Finally, there was very little difference in model fit when including `method` (tank vs. ISCO) as when excluding it, so we do not need to include it as a variable. AIC was a bit improved without it. Again, this did not include interactions, but should still be valid.  
+
+**In this file**   
+
++  Data will be subsetted to a data frame that does not contain ANY NAs, because model selection is based on models containing exactly the same input data.  
++  That subset will be saved as an `.Rdata` file for easier import and reuse downstream.  
++  Some summary statistics for the data that will be used will be generated.  
+
+
+```{r, warning = FALSE, message = FALSE}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(patchwork)
+```
+
+# Data import and export  
+
+```{r}
+dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
+                 sheet = "qaqc") %>% 
+    mutate(extracted = chla_ugl,
+           sensor_rfu = chlorophyll_rfu,
+           sensor_ugl = chl_fluor,
+           month = lubridate::month(datetime_collected)) %>% 
+    select(reserve = reserve_code,
+           sample_no,
+           station_code,
+           datetime_collected,
+           month,
+           method,
+           extracted,
+           sensor_rfu,
+           temp,
+           sal,
+           turb,
+           fdom_qsu) %>% 
+    drop_na()   
+
+# save(dat, file = here::here("data", "subset_no_NA.RData"))
+
+# read back in later with:
+# load(here::here("data", "subset_no_NA.RData"))
+```
+
+# Summary  
+
+## General  
+
+```{r}
+summary(dat)
+nrow(dat)
+```
+
+
+## Reserve by Month  
+
+Seems like some of us didn't get the temporal spread we were wanting.  
+
+
+```{r}
+table(dat$reserve, dat$month)
+```
+
+```{r}
+dat %>% 
+    group_by(reserve, month, method) %>% 
+    summarize(n = n()) %>% 
+    ggplot(aes(x = method, y = n, col = reserve)) +
+    geom_point(size = 2, alpha = 0.6, position = position_dodge2(width = 0.3)) +
+    facet_wrap(~month, ncol = 4) +
+    labs(title = "# Samples by Month, by Reserve") +
+    theme_bw()
+```
+
