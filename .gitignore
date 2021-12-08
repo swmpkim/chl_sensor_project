@@ -1,0 +1,13 @@
+# files
+.Rproj.user
+.Rhistory
+.Rdata
+.httr-oauth
+.DS_Store
+
+# file types
+*.docx
+*.msg
+
+# folders
+Analysis Plan/
