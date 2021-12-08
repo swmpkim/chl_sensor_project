@@ -60,8 +60,17 @@ Example code just below, but it won't run yet because the full model is fitted d
 ```{r}
 # test <- MuMIn::dredge(full_ols, fixed = "sensor_rfu")
 # test
+
+# test3 <- dredge(full_lmm, fixed = "sensor_rfu")
+# test3
+
+# compare different models, including different types
+# model.sel(full_ols, full_lmm, mod3, mod4, mod5)
 ```
 
+AICc is generally lower for the ols fits than the lmm ones. Although to generalize, lmm ones are better, so that's worth looking at. Coefficients are similar between the top ols fits and the full lmm. The top lmm fit though EXCLUDED FDOM!!! Actually the top few from the lmm. So we'll need to see how well those do with predictions, and what the R2 values are (do LMMs produce R2?).  
+
+I think this is underscoring that how FDOM affects things depends on the reserve..... so there's not a magical big relationship.  
 
 ## Prep for outputs  
 
@@ -102,7 +111,7 @@ Reserve included as random effect. This would be ideal if we have enough data to
 
 Fit model:  
 
-```{r}
+```{r, message = TRUE, warning = TRUE}
 full_lmm <- lmer(response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + month + (1 | reserve), data = dat)
 
 # diagnostics
