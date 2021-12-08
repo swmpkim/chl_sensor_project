@@ -49,7 +49,6 @@ dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
            extracted,
            sensor_rfu,
            temp,
-           sal,
            turb,
            fdom_qsu) %>% 
     drop_na()   

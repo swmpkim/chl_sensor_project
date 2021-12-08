@@ -1,0 +1,245 @@
+---
+date: "12/8/2021"
+output: 
+    html_document:
+        code_folding: hide
+        toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(patchwork)
+
+load(here::here("data", "subset_no_NA.RData"))
+
+# original plot settings, for later
+op <- par()
+```
+
+# Full Model with all interactions  
+
+response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu\*turb\*fdom_qsu + sensor_rfu\*turb + sensor_rfu\*fdom_qsu + turb\*fdom_qsu + temp + month + reserve    
+
+
+## No transformation of response  
+
+### Fit Model  
+
+```{r}
+full <- lm(extracted ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + month + reserve, data = dat)
+
+# diagnostics
+df_untransf <- broom::glance(full)
+```
+
+### Plot residuals  
+
+```{r}
+par(mfrow = c(2, 2),
+    mar = c(2, 2, 2, 1))
+plot(full)
+```
+
+
+## Square-root transformation of response  
+
+### Fit Model  
+
+```{r}
+full_sqrt <- lm(sqrt(extracted) ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + month + reserve, data = dat)
+
+# diagnostics  
+df_sqrt <- broom::glance(full_sqrt)
+```
+
+
+### Plot residuals  
+
+```{r}
+par(mfrow = c(2, 2),
+    mar = c(2, 2, 2, 1))
+plot(full_sqrt)
+```
+
+
+## Fourth-root transformation of response  
+
+Similar to a natural-log transformation, but log(0) doesn't exist so I'd like to avoid that transformation.    
+
+### Fit Model  
+
+```{r}
+full_frthrt <- lm(extracted^0.25 ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + month + reserve, data = dat)
+
+# diagnostics
+df_frthrt <- broom::glance(full_frthrt)
+```
+
+### Plot residuals  
+
+```{r}
+par(mfrow = c(2, 2),
+    mar = c(2, 2, 2, 1))
+plot(full_frthrt)
+```
+
+
+# Diagnostics and predictions for all  
+
+Predictions use exponents to get them back on the original scale.  
+
+```{r}
+dat_preds <- dat %>% 
+    mutate(preds_full_untr = fitted.values(full),
+           preds_full_sqrt = (fitted.values(full_sqrt))^2,
+           preds_full_frthrt = (fitted.values(full_frthrt))^4,
+           
+           abs_dev_untr = abs(preds_full_untr - extracted),
+           abs_dev_sqrt = abs(preds_full_sqrt - extracted),
+           abs_dev_frthrt = abs(preds_full_frthrt - extracted))
+
+fits <- tribble(
+    ~"transformation", ~"R2", ~"AdjR2", ~"MedAbsDev",
+    "none", df_untransf$r.squared, df_untransf$adj.r.squared, median(dat_preds$abs_dev_untr),
+    "square-root", df_sqrt$r.squared, df_sqrt$adj.r.squared, median(dat_preds$abs_dev_sqrt),
+    "fourth-root", df_frthrt$r.squared, df_frthrt$adj.r.squared, median(dat_preds$abs_dev_frthrt)
+)
+```
+
+## Diagnostics summary  
+
+```{r}
+knitr::kable(fits, caption = "Diagnostics for model fit", digits = 3)
+```
+
+## Observed vs. Predicted Plots  
+
+Units are all ug/L.  
+
+The black line on the graph is the 1:1 line: we want points to be close to this line.  
+
+```{r}
+p1 <- ggplot(dat_preds, aes(x = preds_full_untr, y = extracted, color = reserve)) +
+    geom_point(size = 2, alpha = 0.4) +
+    geom_abline(slope = 1, intercept = 0) +
+    theme_bw() +
+    labs(title = "Untransformed Model: Observed vs. Predicted Chlorophyll a",
+         x = "Predicted",
+         y = "Extracted")
+
+p2 <- ggplot(dat_preds, aes(x = preds_full_sqrt, y = extracted, color = reserve)) +
+    geom_point(size = 2, alpha = 0.4) +
+    geom_abline(slope = 1, intercept = 0) +
+    theme_bw() +
+    labs(title = "Square-root transformation: Observed vs. Predicted Chlorophyll a",
+         x = "Predicted",
+         y = "Extracted")
+
+p3 <- ggplot(dat_preds, aes(x = preds_full_frthrt, y = extracted, color = reserve)) +
+    geom_point(size = 2, alpha = 0.4) +
+    geom_abline(slope = 1, intercept = 0) +
+    theme_bw() +
+    labs(title = "Fourth-root transformation: Observed vs. Predicted Chlorophyll a",
+         x = "Predicted",
+         y = "Extracted")
+```
+
+```{r, fig.width = 6, fig.height = 7}
+p1 / p2 / p3 + plot_layout(guides = "collect")
+```
+
+
+Hm. Fourth-root has seemingly the best diagnostics (particularly regarding residuals at the low-end of our values), but I don't like the error on that high outlier.    
+
+
+I wonder about something in between fourth and square, like a third-root.  
+
+# Another transformation  
+
+## Third-root transformation of response  
+
+
+### Fit Model  
+
+```{r}
+full_thrdrt <- lm(extracted^(1/3) ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + month + reserve, data = dat)
+
+# diagnostics
+df_thrdrt <- broom::glance(full_thrdrt)
+knitr::kable(fits, caption = "Diagnostics for model fit", digits = 3)
+```
+
+### Plot residuals  
+
+```{r}
+par(mfrow = c(2, 2),
+    mar = c(2, 2, 2, 1))
+plot(full_thrdrt)
+```
+
+### Predict  
+
+```{r}
+# just add to existing data frame:  
+dat_preds <- dat_preds %>% 
+    mutate(preds_full_thrdrt = (fitted.values(full_thrdrt))^3,
+           abs_dev_thrdrt = abs(preds_full_thrdrt - extracted))
+
+# diagnostics df:
+fits2 <- tribble(
+    ~"transformation", ~"R2", ~"AdjR2", ~"MedAbsDev",
+    "third-root", df_thrdrt$r.squared, df_thrdrt$adj.r.squared, median(dat_preds$abs_dev_thrdrt)
+)
+
+fits <- bind_rows(fits, fits2)
+```
+
+## Observed vs. Predicted Plots, Part 2  
+
+```{r}
+p4 <- ggplot(dat_preds, aes(x = preds_full_thrdrt, y = extracted, color = reserve)) +
+    geom_point(size = 2, alpha = 0.4) +
+    geom_abline(slope = 1, intercept = 0) +
+    theme_bw() +
+    labs(title = "Third-root transformation: Observed vs. Predicted Chlorophyll a",
+         x = "Predicted",
+         y = "Extracted")
+```
+
+```{r, fig.width = 6, fig.height = 8}
+p1 / p2 / p4 / p3 + plot_layout(guides = "collect")
+```
+
+
+### Progressively zoom in on the low-ish end  
+
+Since that's where most of our actual observations are.  
+
+```{r, fig.width = 6, fig.height = 8}
+p1 / p2 / p4 / p3 + plot_layout(guides = "collect") &
+    coord_cartesian(xlim = c(0, 60))
+```
+
+```{r, fig.width = 6, fig.height = 8}
+p1 / p2 / p4 / p3 + plot_layout(guides = "collect") &
+    coord_cartesian(xlim = c(0, 30), ylim = c(0, 50))
+```
+
+```{r, fig.width = 6, fig.height = 8}
+p1 / p2 / p4 / p3 + plot_layout(guides = "collect") &
+    coord_cartesian(xlim = c(-5, 10), ylim = c(0, 30))
+```
+
+```{r, fig.width = 6, fig.height = 8}
+p1 / p2 / p4 / p3 + plot_layout(guides = "collect") &
+    coord_cartesian(xlim = c(-3, 7), ylim = c(0, 15))
+```

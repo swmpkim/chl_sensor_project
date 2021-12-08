@@ -1,0 +1,257 @@
+---
+title: "Model for all reserves combined"
+date: "12/8/2021"
+output: 
+    html_document:
+        code_folding: hide
+        toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+# Setup  
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(patchwork)
+library(lme4)
+
+load(here::here("data", "subset_no_NA.RData"))
+
+# make sure month and reserve are factors
+dat <- dat %>% 
+    mutate(month = as.factor(month),
+           reserve = as.factor(reserve))
+
+# original plot settings, for later
+op <- par()
+
+# options, for MuMIn operations
+# will prevent fitting sub-models to different datasets (from help file)
+options(na.action = "na.fail")
+```
+
+One manipulation of data frame so I can code this up and make a final decision on a transformation later: generate a column called `response` that will be used in the models. If we decide on a square-root transformation, response will be calculated as `sqrt(extracted)`. That's what I'll work with for now but it can be changed to `extracted^(1/3)` or something different, and we should still be able to generate all relevant outputs.  
+
+```{r}
+dat$response <- sqrt(dat$extracted)
+```
+
+
+# Modeling  
+
+**SEE `MuMIn::dredge()` and `MuMIn::mod.sel()`**  
+
+`dredge()` will check all possible subsets of the model you give it. Can force it to keep a given term with `fixed = `.  This can be a bad idea if it causes you to consider implausible models! The only variables included in this dataframe though are ones that we want to know if we could keep or drop. From playing with this function, in the top models (delta AICc < 5, even <10), the only terms that get dropped are various flavors of interaction. Reserve doesn't get dropped until WAY down the list. FDOM gets dropped maybe 10 down, at delAICc around 10. So it's not great.  
+
+I think this will tell us we really can't do much unless we can account for reserve.  
+
+Unless it also works on mixed models, in which case we might have a shot.  
+
+Example code just below, but it won't run yet because the full model is fitted down below.  
+
+```{r}
+# test <- MuMIn::dredge(full_ols, fixed = "sensor_rfu")
+# test
+```
+
+
+## Prep for outputs  
+
+Set up a list to eventually get a table full of diagnostics, and another list to compile all the model formulae:  
+
+```{r}
+diags <- list()
+calls <- list()
+```
+
+
+## Model 1: Full Model, OLS  
+
+Includes all interactions between sensor_rfu, turbidity, and FDOM. Hoping we can actually drop some of these.  
+
+Reserve included as fixed effect.  
+
+response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu\*turb\*fdom_qsu + sensor_rfu\*turb + sensor_rfu\*fdom_qsu + turb*fdom_qsu + temp + month + reserve
+
+Fit model:  
+
+```{r}
+full_ols <- lm(response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + month + reserve, data = dat)
+
+# diagnostics
+# ols for ordinary least squares
+diags$full_ols <- broom::glance(full_ols)
+calls$full_ols <- as.character(full_ols$call[2])
+```
+
+***  
+
+## Model 2: Full Model, LMM  
+
+Includes all interactions between sensor_rfu, turbidity, and FDOM. Hoping we can actually drop some of these.  
+
+Reserve included as random effect. This would be ideal if we have enough data to make the model run.   
+
+Fit model:  
+
+```{r}
+full_lmm <- lmer(response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + month + (1 | reserve), data = dat)
+
+# diagnostics
+# diags$full_lmm <- broom::glance(full_lmm)  # glance method doesn't exist for lmer objects  
+```
+
+AIC for this is actually higher than for the ordinary least squares version (`r AIC(full_lmm)` vs. `r AIC(full_ols)`), and it's harder to grab all the diagnostics from LMMs. So I'll stop working with mixed models here and only use fixed effects.  
+
+***  
+
+## Model 3: Model with all interactions, dropping reserve  
+
+response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu\*turb\*fdom_qsu + sensor_rfu\*turb + sensor_rfu\*fdom_qsu + turb*fdom_qsu + temp + month
+
+Fit model:  
+
+```{r}
+mod3 <- lm(response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + month, data = dat)
+
+# diagnostics
+diags$mod3 <- broom::glance(mod3)
+calls$mod3 <- as.character(mod3$call[2])
+```
+
+***
+
+## Model 4: Model with reserve; dropping 3-way interaction  
+
+This keeps all 2-way interactions with RFU.  
+
+response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu\*turb + sensor_rfu\*fdom_qsu + turb*fdom_qsu + temp + month + reserve
+
+Fit model:  
+
+```{r}
+mod4 <- lm(response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + month + reserve, data = dat)
+
+# diagnostics
+diags$mod4 <- broom::glance(mod4)
+calls$mod4 <- as.character(mod4$call[2])
+```
+
+
+MAY want to come back later and drop one interaction at a time.  
+
+***
+
+## Model 5: Model with reserve, dropping all interactions  
+
+So far have kept temperature in.  
+
+response ~ sensor_rfu + turb + fdom_qsu + temp + month + reserve
+
+Fit model:  
+
+```{r}
+mod5 <- lm(response ~ sensor_rfu + turb + fdom_qsu + temp + month + reserve, data = dat)
+
+# diagnostics
+diags$mod5 <- broom::glance(mod5)
+calls$mod5 <- as.character(mod5$call[2])
+```
+
+
+***
+
+## Model 6: Model with reserve, dropping all interactions and month  
+
+So far have kept temperature in.  
+
+response ~ sensor_rfu + turb + fdom_qsu + temp + reserve
+
+Fit model:  
+
+```{r}
+mod6 <- lm(response ~ sensor_rfu + turb + fdom_qsu + temp + reserve, data = dat)
+
+# diagnostics
+diags$mod6 <- broom::glance(mod6)
+calls$mod6 <- as.character(mod6$call[2])
+```
+
+
+***  
+
+## Model 7: Model with only rfu, turb, fdom, and interactions  
+
+response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu\*turb\*fdom_qsu + sensor_rfu\*turb + sensor_rfu\*fdom_qsu + turb*fdom_qsu
+
+Fit model:  
+
+```{r}
+mod7 <- lm(response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu, data = dat)
+
+# diagnostics
+diags$mod7 <- broom::glance(mod7)
+calls$mod7 <- as.character(mod7$call[2])
+```
+
+***
+
+## Model 8: Like model 7, with reserve added back in  
+
+Month is still out.  
+
+response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu\*turb\*fdom_qsu + sensor_rfu\*turb + sensor_rfu\*fdom_qsu + turb*fdom_qsu + reserve  
+
+Fit model:  
+
+```{r}
+mod8 <- lm(response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + reserve, data = dat)
+
+# diagnostics
+diags$mod8 <- broom::glance(mod8)
+calls$mod8 <- as.character(mod8$call[2])
+```
+
+***  
+***  
+
+# All diagnostics  
+
+```{r}
+diags_df <- bind_rows(diags, .id = "model")
+knitr::kable(diags_df, digits = 2)
+```
+
+### Reminder of model calls:  
+
+```{r}
+calls_df <- bind_rows(calls) 
+knitr::kable(calls_df)
+```
+
+## Ordered by AIC  
+
+And with model call bound  
+
+```{r}
+# out_all <- full_join(diags_df, calls_df, by = "model")
+
+diags_df %>% 
+    select(model, AIC, r.squared, adj.r.squared) %>% 
+    arrange(AIC) %>% 
+    knitr::kable(digits = 3)
+```
+
+
+
+# Best models  
+
+Pull coefficients for the 'best' model(s) (given this dataset and candidate models; can't say it's the absolute best).  
