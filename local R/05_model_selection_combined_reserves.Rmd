@@ -60,6 +60,15 @@ Example code just below, but it won't run yet because the full model is fitted d
 ```{r}
 # test <- MuMIn::dredge(full_ols, fixed = "sensor_rfu")
 # test
+# or show only the top ones - under some delta threshold:
+# subset(test, delta < 10)
+#'Best' model
+# summary(get.models(test, 1)[[1]])
+
+# ADD IN R2 and ADJUSTED R2
+# test2 <- MuMIn::dredge(full_ols, fixed = "sensor_rfu", extra = c("R^2", "adjR^2"))
+# see help file for how to pull in others
+
 
 # test3 <- dredge(full_lmm, fixed = "sensor_rfu")
 # test3
