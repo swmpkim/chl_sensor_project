@@ -51,7 +51,9 @@ dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
            temp,
            turb,
            fdom_qsu) %>% 
-    drop_na()   
+    drop_na() %>% 
+    mutate(across(c(reserve, sample_no, station_code, month),
+           as.factor))
 
 # save(dat, file = here::here("data", "subset_no_NA.RData"))
 

@@ -25,11 +25,6 @@ library(lme4)
 
 load(here::here("data", "subset_no_NA.RData"))
 
-# make sure month and reserve are factors
-dat <- dat %>% 
-    mutate(month = as.factor(month),
-           reserve = as.factor(reserve))
-
 # original plot settings, for later
 op <- par()
 
