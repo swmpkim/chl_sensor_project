@@ -1,0 +1,87 @@
+---
+title: "Individual Reserve Models"
+date: "12/9/2021"
+output: 
+    html_document:
+        code_folding: hide
+        toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(patchwork)
+library(lmerTest)
+library(MuMIn)
+
+load(here::here("data", "subset_no_NA.RData"))
+
+# original plot settings, for later
+op <- par()
+
+# options, for MuMIn operations
+# will prevent fitting sub-models to different datasets (from help file)
+options(na.action = "na.fail")
+```
+
+
+One manipulation of data frame so I can code this up and make a final decision on a transformation later: generate a column called `response` that will be used in the models. If we decide on a square-root transformation, response will be calculated as `sqrt(extracted)`. That's what I'll work with for now but it can be changed to `extracted^(1/3)` or something different, and we should still be able to generate all relevant outputs.  
+
+```{r}
+dat$response <- sqrt(dat$extracted)
+```
+
+
+For each reserve, want to pull out that data, model, and dredge.  
+
+
+# Loop through reserves and run models  
+
+```{r}
+mod_sel_out <- list()
+mod_summs_out <- list()
+reserves <- unique(dat$reserve)
+
+for(i in seq_along(reserves)){
+    res <- dat %>% 
+        filter(reserve == reserves[i])
+    
+    full_ols <- lm(response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + month, data = res)
+    
+    sel <- dredge(full_ols, 
+                  fixed = "sensor_rfu",
+                  extra = c("R^2", "AdjR^2" = function(x) summary(x)$adj.r.squared))
+    
+    # see anything with delta AICc < 5
+    mod_sel_out[[i]] <- subset(sel, delta < 5)
+    
+    # summary for top model
+    mod_summs_out[[i]] <- summary(get.models(sel, 1)[[1]])
+}
+
+mod_sel_out <- purrr::set_names(mod_sel_out, reserves)
+mod_summs_out <- purrr::set_names(mod_summs_out, reserves)
+```
+
+
+# Model selection matrices by reserve  
+
+```{r}
+mod_sel_out
+```
+
+
+# Top model summary by reserve  
+
+```{r}
+mod_summs_out
+```
+
