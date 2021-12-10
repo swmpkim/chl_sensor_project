@@ -39,10 +39,15 @@ dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
     mutate(extracted = chla_ugl,
            sensor_rfu = chlorophyll_rfu,
            sensor_ugl = chl_fluor,
-           month = lubridate::month(datetime_collected)) %>% 
+           month = lubridate::month(datetime_collected),
+           season = case_when(month %in% c(12, 1, 2)  ~ "Winter",
+                              month %in% c(3, 4, 5)   ~ "Spring",
+                              month %in% c(6, 7, 8)   ~ "Summer",
+                              month %in% c(9, 10, 11) ~ "Fall")) %>% 
     select(reserve = reserve_code,
            datetime_collected,
            month,
+           season,
            method,
            extracted,
            sensor_rfu,
@@ -50,8 +55,9 @@ dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
            turb,
            fdom_qsu) %>% 
     drop_na() %>% 
-    mutate(across(c(reserve, month),
-           as.factor))
+    mutate(across(c(reserve, month, season),
+           as.factor),
+           season = forcats::fct_relevel(season, c("Winter", "Spring", "Summer", "Fall")))
 
 # save(dat, file = here::here("data", "subset_no_NA.RData"))
 
@@ -87,5 +93,55 @@ dat %>%
     facet_wrap(~month, ncol = 4) +
     labs(title = "# Samples by Month, by Reserve") +
     theme_bw()
+```
+
+## Reserve by Season  
+
+```{r}
+table(dat$reserve, dat$season)
+```
+
+```{r}
+dat %>% 
+    group_by(reserve, season, method) %>% 
+    summarize(n = n()) %>% 
+    ggplot(aes(x = method, y = n, col = reserve)) +
+    geom_point(size = 2, alpha = 0.6, position = position_dodge2(width = 0.3)) +
+    facet_wrap(~season, ncol = 2) +
+    labs(title = "# Samples by Season, by Reserve") +
+    theme_bw()
+```
+
+
+Values by season and reserve.....
+
+```{r}
+dat %>% 
+    group_by(reserve, season, method) %>% 
+    ggplot(aes(x = method, y = extracted, col = reserve)) +
+    geom_point(size = 2, alpha = 0.6, position = position_dodge2(width = 0.3)) +
+    facet_wrap(~season, ncol = 2) +
+    labs(title = "Extracted chl a by Season, by Reserve") +
+    theme_bw()
+```
+
+
+```{r}
+dat %>% 
+    group_by(reserve, season, method) %>% 
+    ggplot(aes(x = method, y = fdom_qsu, col = reserve)) +
+    geom_point(size = 2, alpha = 0.6, position = position_dodge2(width = 0.3)) +
+    facet_wrap(~season, ncol = 2) +
+    labs(title = "FDOM (qsu) by Season, by Reserve") +
+    theme_bw()
+```
+
+
+## Correlations between predictors?  
+
+```{r, fig.width = 8, fig.height = 8}
+dat %>% 
+    select(reserve, month, season, method, extracted, sensor_rfu, temp, turb, fdom_qsu) %>% 
+    plot()
 ```
 

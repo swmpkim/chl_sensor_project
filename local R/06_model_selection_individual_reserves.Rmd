@@ -65,6 +65,8 @@ for(i in seq_along(reserves)){
     
     # summary for top model
     mod_summs_out[[i]] <- summary(get.models(sel, 1)[[1]])
+    
+    # predict? on validation data? and/or fitted values?  
 }
 
 mod_sel_out <- purrr::set_names(mod_sel_out, reserves)
