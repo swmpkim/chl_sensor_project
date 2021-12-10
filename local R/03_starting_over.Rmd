@@ -41,8 +41,6 @@ dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
            sensor_ugl = chl_fluor,
            month = lubridate::month(datetime_collected)) %>% 
     select(reserve = reserve_code,
-           sample_no,
-           station_code,
            datetime_collected,
            month,
            method,
@@ -52,7 +50,7 @@ dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
            turb,
            fdom_qsu) %>% 
     drop_na() %>% 
-    mutate(across(c(reserve, sample_no, station_code, month),
+    mutate(across(c(reserve, month),
            as.factor))
 
 # save(dat, file = here::here("data", "subset_no_NA.RData"))
