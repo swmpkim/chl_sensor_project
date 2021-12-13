@@ -10,7 +10,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
-The previous files had some extensive EDA. I did not, however, include interactions between `sensor_rfu` and anything else, adn this may be important. May also change some things, but might not.  
+The previous files had some extensive EDA. I did not, however, include interactions between `sensor_rfu` and anything else, and this may be important. May also change some things, but might not.  
 
 +  Square-root transformation of the response variable (`extracted`) seemed most appropriate (see `01_first_models_and_transformations`). This will be reexamined.      
 +  In that file I did not see a difference between model outputs between the predictors `sensor_ugl` vs. `sensor_rfu`, so to fit with previous conversations by the workgroup, I'll proceed using only `sensor_rfu`. This should still be valid even though interactions weren't included.  

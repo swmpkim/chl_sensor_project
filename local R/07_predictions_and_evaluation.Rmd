@@ -1,0 +1,34 @@
+---
+title: "Evaluating Predictions"
+date: "12/10/2021"
+output: 
+    html_document:
+        code_folding: hide
+        toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+# Make Predictions for each Reserve  
+
+using validation data  
+
+## Calculate error estimate (RMSE/MAD/??)  
+
+for both training and validation data  
+
+
+# Compare predictions  
+
+Graph for each reserve, of observed vs. predicted. At least 3 series for predicted:  
+
+1.  Reserve-specific model  
+2.  Global (combined Reserve) model  
+3.  Sensor ug/L output  
+4.  Corrected-rfu models (if available)  
+
+Because even if the best of the candidate models included other sensors, are the predictions better *enough*, in the real world?  

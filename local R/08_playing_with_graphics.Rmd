@@ -1,0 +1,113 @@
+---
+title: "08_playing_with_graphics"
+author: "Kim Cressman"
+date: "12/10/2021"
+output: 
+    html_document:
+        code_folding: hide
+        toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+# Setup  
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(patchwork)
+library(lmerTest)
+library(MuMIn)
+
+load(here::here("data", "subset_no_NA.RData"))
+
+# original plot settings, for later
+op <- par()
+
+# options, for MuMIn operations
+# will prevent fitting sub-models to different datasets (from help file)
+options(na.action = "na.fail")
+```
+
+One manipulation of data frame so I can code this up and make a final decision on a transformation later: generate a column called `response` that will be used in the models. If we decide on a square-root transformation, response will be calculated as `sqrt(extracted)`. That's what I'll work with for now but it can be changed to `extracted^(1/3)` or something different, and we should still be able to generate all relevant outputs.  
+
+```{r}
+dat$response <- sqrt(dat$extracted)
+```
+
+# Make a lot of predictions and graph them  
+
+For each reserve  
+
+## Global models and predictions  
+
+```{r}
+glob_randInt <- lmer(response ~ sensor_rfu*(temp + turb*fdom_qsu + season) + (1|reserve),
+                    data = dat)
+
+glob_randSlope <- lmer(response ~ sensor_rfu*(temp + turb*fdom_qsu + season) + (sensor_rfu|reserve),
+             data = dat)
+
+glob_ols_noReserve <- lm(response ~ sensor_rfu*(temp + turb*fdom_qsu + season),
+                         data = dat)
+
+
+dat2 <- dat %>% 
+    mutate(predicted_ols = (predict(glob_ols_noReserve, newdata = .))^2,
+           predicted_randInt_noRes = (predict(glob_randInt, newdata = ., re.form = ~0))^2,
+           predicted_randInt_knownRes = (predict(glob_randInt, newdata = .))^2,
+           predicted_randSlope_noRes = (predict(glob_randInt, newdata = ., re.form = ~0))^2,
+           predicted_randSlope_knownRes = (predict(glob_randSlope, newdata = .))^2)
+```
+
+## Reserve level, and graphs  
+
+```{r}
+
+reserves <- unique(dat$reserve)
+
+for(i in seq_along(reserves)){
+    res <- dat2 %>% 
+        filter(reserve == reserves[i]) %>% 
+        droplevels()
+    # DROPPING LEVELS CAN BE DANGEROUS
+    
+    res_ols <- lm(response ~ sensor_rfu*(temp + turb*fdom_qsu + season),
+                  data = res)
+
+    res$preds_ols <- (predict(res_ols, newdata = res))^2
+    
+    print(
+        ggplot(res, aes(y = extracted)) +
+            geom_abline(slope = 1, intercept = 0) +
+            geom_point(aes(x = predicted_randInt_noRes,
+                           color = "Intercept", shape = "unknown"),
+                       size = 2, alpha = 0.4) +
+            geom_point(aes(x = predicted_randInt_knownRes,
+                           color = "Intercept", shape = "known"),
+                       size = 2, alpha = 0.4) +
+            geom_point(aes(x = predicted_randSlope_noRes,
+                           color = "Slope", shape = "unknown"),
+                       size = 2, alpha = 0.4) +
+            geom_point(aes(x = predicted_randSlope_knownRes,
+                           color = "Slope", shape = "known"),
+                       size = 2, alpha = 0.4) +
+            geom_point(aes(x = preds_ols,
+                           color = "OLS", shape = "known"),
+                       size = 2, alpha = 0.4) +
+            labs(title = reserves[i],
+                 x = "Predicted",
+                 y = "Observed",
+                 color = "Random",
+                 shape = "Reserve as predictor")
+    )
+}
+
+```
+
