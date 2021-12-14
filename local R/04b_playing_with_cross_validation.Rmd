@@ -109,3 +109,67 @@ kfoldsq2 <- cv.glm(dat, glmsq, cost, K=5)
 kfoldsq2$delta
 ```
 
+
+# Symmetric Median Absolute Percentage Error  
+
+See Hyndman and Koehler 2006. Another look at measures of forecast accuracy. International Journal of Forecasting 22(4): 679-688.  
+
+Which is actually more of a cautionary tale about most of these measures, but it explains them all so well (especially in combination with some other papers) that I think sMdAPE is appropriate for my needs.  
+
+Formula from Makridakis 1993. Accuracy measures: theoretical and practical concerns. International Journal of Forecasting 9: 527-529.  
+
+That formula seems a little different than what Hyndman and Koehler presented; particularly in that it can't lead to negative values. And rather than taking the mean, I'm just taking the median.   
+
+## code the cost function  
+
+```{r}
+sMdAPE <- function(obs, expt){
+    median(
+        abs(
+            100 * (obs-expt) / ((obs+expt)/2)
+        )
+    )
+}
+```
+
+```{r}
+sMdAPE(obs = subtest$y, expt = subpreds)
+
+dat3 <- data.frame("obs" = subtest$y,
+                   "expt" = subpreds)
+
+dat4 <- dat3 %>% 
+    mutate(diff = obs-expt,
+           pctdiff = 100*diff/((obs+expt)/2),
+           APE = abs(pctdiff))
+
+```
+
+## see if i can make it work on squared stuff  
+
+Because the predictions are the square root of what we're actually interested in, and i want *prediction* accuracy.  
+
+```{r}
+cost <- function(obs, expt){
+    median(
+        abs(
+            100 * (obs^2-expt^2) / ((obs^2+expt^2)/2)
+        )
+    )
+}
+```
+
+Test on my toy data:  
+
+```{r}
+dat5 <- subtest %>% 
+    mutate(preds = subpreds^2,
+           diff = y2-preds,
+           pctdiff = 100*diff/((y2+preds)/2),
+           APE = abs(pctdiff))
+median(dat5$APE)
+
+# test on the unsquared ones
+cost(subtest$y, subpreds)
+```
+
