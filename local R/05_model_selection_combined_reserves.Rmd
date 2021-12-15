@@ -141,9 +141,7 @@ Reserve and season are in all of the top ones, so we really can't just extrapola
 ```{r}
 no_fdom_ols <- glm(response ~ sensor_rfu + turb + sensor_rfu*turb + temp + sensor_rfu*temp + season + reserve, data = dat)
 
-no.fdom.ols <- model.sel(no_fdom_ols, 
-                     extra = c("R^2" = function(x) summary(x)$r.squared, 
-                               "AdjR^2" = function(x) summary(x)$adj.r.squared)) %>% 
+no.fdom.ols <- model.sel(no_fdom_ols) %>% 
     mutate(model = "no.fdom.ols")
 ```
 
@@ -199,3 +197,32 @@ ols.cv <- cv.glm(dat, ols.1, K = 5)
 ols.cv$delta
 ```
 
+Because the predictions are the square root of what we're actually interested in, and i want *prediction* accuracy.  
+
+# Cost Function for sMdAPE  
+
+```{r}
+cost <- function(obs, expt){
+    median(
+        abs(
+            100 * (obs^2-expt^2) / ((obs^2+expt^2)/2)
+        )
+    )
+}
+```
+
+```{r}
+ols.cv <- cv.glm(dat, ols.1, cost, K = 10)
+ols.cv$delta
+```
+
+41% off! Yikes!  
+
+Is no FDOM any better?  
+
+```{r}
+ols.nofdom.cv <- cv.glm(dat, no_fdom_ols, cost, K = 10)
+ols.nofdom.cv$delta
+```
+
+About the same. (not worse, so that's.... something?)
