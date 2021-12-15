@@ -183,7 +183,6 @@ no.fdom.lmm <- model.sel(no_fdom_lmm) %>%
 
 ```{r}
 all.sel <- bind_rows(top.ols, no.fdom.ols, top.lmm, no.fdom.lmm)
-knitr::kable(all.sel)
 ```
 
 # Cross-validation and prediction error  
@@ -218,6 +217,10 @@ cost <- function(obs, expt){
 ```{r}
 ols.cv <- cv.glm(dat, ols.1, cost, K = 10)
 ols.cv$delta
+
+ols.cv.df <- data.frame(model.sel(ols.1))%>% 
+    dplyr::select(1:df)
+ols.cv.df$pred_test_error <- ols.cv$delta[1]
 ```
 
 41% off! Yikes!  
@@ -227,9 +230,28 @@ Is no FDOM any better?
 ```{r}
 ols.nofdom.cv <- cv.glm(dat, no_fdom_ols, cost, K = 10)
 ols.nofdom.cv$delta
+
+
+ols.nofdomcv.df <- data.frame(model.sel(no_fdom_ols)) %>% 
+    dplyr::select(1:df)
+ols.nofdomcv.df$pred_test_error <- ols.nofdom.cv$delta[1]
 ```
 
 About the same. (not worse, so that's.... something?)  
+
+# Summary Table for main models  
+
+```{r}
+cv_test_errors <- bind_rows(ols.cv.df, ols.nofdomcv.df)
+
+test <- data.frame(all.sel) %>% 
+    left_join(., cv_test_errors) %>% 
+    dplyr::select(model, AICc, pred_test_error, everything()) %>% 
+    select(-family, -delta, -weight)
+
+test
+```
+
 
 # Graphics  
 
@@ -246,9 +268,36 @@ dat2 <- dat %>%
 ```{r}
 ggplot(dat2, aes(x = rownum)) +
     geom_point(aes(y = preds_ols, color = "OLS"), alpha = 0.4) +
-    geom_point(aes(y = preds_nofdom_ols, color = "OLS, no FDOM")) +
+    geom_point(aes(y = preds_nofdom_ols, color = "OLS, no FDOM"), alpha = 0.4) +
     geom_point(aes(y = preds_lmm, color = "LMM"), alpha = 0.4) +
     geom_point(aes(y = preds_nofdom_lmm, color = "LMM, no FDOM"), alpha = 0.4) +
-    geom_point(aes(y = extracted, color = "Extracted"), size = 3, alpha = 0.6)
+    geom_point(aes(y = extracted, color = "Extracted"), size = 3, alpha = 0.6) +
+    labs(title = "Chl predictions from various models",
+         x = "row number in data (sorted from smallest to largest chl a",
+         y = "ug/L, extracted or predicted",
+         color = "model")
 ```
 
+```{r}
+ggplot(dat2, aes(x = rownum)) +
+    geom_point(aes(y = preds_ols, shape = "OLS", color = reserve), alpha = 0.5) +
+    geom_point(aes(y = preds_nofdom_ols, shape = "OLS, no FDOM", color = reserve), alpha = 0.5) +
+    geom_point(aes(y = extracted, shape = "Extracted", color = reserve), size = 3, alpha = 0.6) +
+    labs(title = "Chl predictions, OLS models only",
+         x = "row number in data (sorted from smallest to largest chl a",
+         y = "ug/L, extracted or predicted",
+         color = "Reserve",
+         shape = "Model")
+```
+
+```{r}
+ggplot(dat2, aes(x = rownum)) +
+    geom_point(aes(y = preds_lmm, shape = "LMM", color = reserve), alpha = 0.5) +
+    geom_point(aes(y = preds_nofdom_lmm, shape = "LMM, no FDOM", color = reserve), alpha = 0.5) +
+    geom_point(aes(y = extracted, shape = "Extracted", color = reserve), size = 3, alpha = 0.6) +
+    labs(title = "Chl predictions, LMM models only",
+         x = "row number in data (sorted from smallest to largest chl a",
+         y = "ug/L, extracted or predicted",
+         color = "Reserve",
+         shape = "Model")
+```
