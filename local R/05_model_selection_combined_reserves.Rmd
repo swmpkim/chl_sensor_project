@@ -179,6 +179,8 @@ no.fdom.lmm <- model.sel(no_fdom_lmm) %>%
     mutate(model = "no.fdom.lmm")
 ```
 
+# Table of coefficients and diagnostics    
+
 ```{r}
 all.sel <- bind_rows(top.ols, no.fdom.ols, top.lmm, no.fdom.lmm)
 knitr::kable(all.sel)
@@ -190,7 +192,9 @@ Using only THE top model for each of OLS and LMM, plus the no-FDOM models
 
 ```{r}
 ols.1 <- get.models(sel.ols, 1)[[1]]
-predict(ols.1, newdata = dat)
+# predict(ols.1, newdata = dat)
+
+lmm.1 <- get.models(sel.lmm, 1)[[1]]
 
 # regular old RMSE
 ols.cv <- cv.glm(dat, ols.1, K = 5)
@@ -225,4 +229,26 @@ ols.nofdom.cv <- cv.glm(dat, no_fdom_ols, cost, K = 10)
 ols.nofdom.cv$delta
 ```
 
-About the same. (not worse, so that's.... something?)
+About the same. (not worse, so that's.... something?)  
+
+# Graphics  
+
+```{r}
+dat2 <- dat %>% 
+    mutate(preds_ols = (predict(ols.1, newdata = dat))^2,
+           preds_nofdom_ols = (predict(no_fdom_ols, newdata = dat))^2,
+           preds_lmm = (predict(lmm.1, newdata = dat))^2,
+           preds_nofdom_lmm = (predict(no_fdom_lmm, newdata = dat))^2) %>% 
+    arrange(extracted) %>% 
+    mutate(rownum = row_number())
+```
+
+```{r}
+ggplot(dat2, aes(x = rownum)) +
+    geom_point(aes(y = preds_ols, color = "OLS"), alpha = 0.4) +
+    geom_point(aes(y = preds_nofdom_ols, color = "OLS, no FDOM")) +
+    geom_point(aes(y = preds_lmm, color = "LMM"), alpha = 0.4) +
+    geom_point(aes(y = preds_nofdom_lmm, color = "LMM, no FDOM"), alpha = 0.4) +
+    geom_point(aes(y = extracted, color = "Extracted"), size = 3, alpha = 0.6)
+```
+
