@@ -33,6 +33,8 @@ library(patchwork)
 
 # Data import and export  
 
+re-run 12/16/2021 to incorporate new data file sent on 12/15 (GRB ISCO data had been left out of original file)  
+
 ```{r}
 dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
                  sheet = "qaqc") %>% 
