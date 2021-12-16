@@ -197,10 +197,10 @@ lmm.1 <- get.models(sel.lmm, 1)[[1]]
 
 # regular old RMSE
 ols.cv <- cv.glm(dat, ols.1, K = 5)
-ols.cv$delta
+# ols.cv$delta
 ```
 
-Because the predictions are the square root of what we're actually interested in, and i want *prediction* accuracy.  
+The model predictions are the square root of what we're actually interested in, and I want accuracy for the back-transformed predictions/estimates.  
 
 # Cost Function for sMdAPE  
 
@@ -214,6 +214,8 @@ cost <- function(obs, expt){
 }
 ```
 
+## Cross-validation for OLS models   
+
 ```{r}
 ols.cv <- cv.glm(dat, ols.1, cost, K = 10)
 ols.cv$delta
@@ -223,7 +225,7 @@ ols.cv.df <- data.frame(model.sel(ols.1))%>%
 ols.cv.df$pred_test_error <- ols.cv$delta[1]
 ```
 
-41% off! Yikes!  
+~40% off! Yikes! Reminder that this is the **median** error, so some are much smaller and some are much bigger.  
 
 Is no FDOM any better?  
 
@@ -237,7 +239,76 @@ ols.nofdomcv.df <- data.frame(model.sel(no_fdom_ols)) %>%
 ols.nofdomcv.df$pred_test_error <- ols.nofdom.cv$delta[1]
 ```
 
-About the same. (not worse, so that's.... something?)  
+About the same. (not worse, so that's.... something?)   
+
+## Cross-validation for LMMs  
+
+I've been debating whether to make sure the randomization for what goes into the model is stratified, so each reserve is represented in each 'fold'. But.... it seems like we'll get a better picture if we allow for uneven representation. So I think I will not stratify the randomization.  
+
+I'm also interested in how much worse predictions get when we don't account for reserve, so I'll produce numbers for both "reserve included" and "reserve not included/do not re-fit random effects".  
+
+## sMdAPE function  
+
+```{r}
+sMdAPE <- function(obs, expt){
+    median(
+        abs(
+            100 * (obs-expt) / ((obs+expt)/2)
+        )
+    )
+}
+```
+
+
+```{r}
+K = 10
+
+# output vectors:
+full.lmm.errors <- rep(0, K)
+nofdom.lmm.errors <- rep(0, K)
+full.lmm.noRanEff.errors <- rep(0, K)
+nofdom.lmm.noRanEff.errors <- rep(0, K)
+
+
+set.seed(1216)
+groups_vec <- rep(1:K, length.out = nrow(dat))
+dat$fold <- sample(groups_vec, replace = FALSE)
+
+for (i in 1:K){
+  # split data into train/validate
+  train <- dplyr::filter(dat, fold != i)
+  val <- dplyr::filter(dat, fold == i)
+  
+  # fit models on training set
+  fit.lmm <- lmer(formula = response ~ fdom_qsu + season + temp + sensor_rfu + 
+                    (1 | reserve) + temp:sensor_rfu, data = train)
+  
+  fit.lmm.nofdom <- lmer(response ~ sensor_rfu + turb + sensor_rfu * turb + 
+                           temp + sensor_rfu * temp + season + (1 | reserve), data = train)
+  
+  # predict, using reserve, on validation set
+  preds.lmm <- (predict(fit.lmm, newdata = val))^2
+  preds.lmm.nofdom <- (predict(fit.lmm.nofdom, newdata = val))^2
+  
+  # predict, NOT using reserve, on validation set
+  preds.lmm2 <- (predict(fit.lmm, re.form = ~0, newdata = val))^2
+  preds.lmm2.nofdom <- (predict(fit.lmm.nofdom, re.form = ~0, newdata = val))^2
+  
+  # calculate errors  
+  full.lmm.errors[i] <- sMdAPE(obs = val$extracted, expt = preds.lmm)
+  nofdom.lmm.errors[i] <- sMdAPE(obs = val$extracted, expt = preds.lmm.nofdom)
+  full.lmm.noRanEff.errors[i] <- sMdAPE(obs = val$extracted, expt = preds.lmm2)
+  nofdom.lmm.noRanEff.errors[i] <- sMdAPE(obs = val$extracted, expt = preds.lmm2.nofdom)
+}
+```
+
+```{r}
+mean(full.lmm.errors)
+mean(nofdom.lmm.errors)
+mean(full.lmm.noRanEff.errors)
+mean(nofdom.lmm.noRanEff.errors)
+```
+
 
 # Summary Table for main models  
 
@@ -245,13 +316,13 @@ About the same. (not worse, so that's.... something?)
 cv_test_errors <- bind_rows(ols.cv.df, ols.nofdomcv.df) %>% 
   select(-family)
 
-test <- data.frame(all.sel) %>% 
+big_table <- data.frame(all.sel) %>% 
     full_join(., cv_test_errors) %>% 
     dplyr::select(model, AICc, pred_test_error, everything()) %>% 
     select(-family, -delta, -weight) %>% 
   mutate(across(c(AICc, pred_test_error), ~round(., 2)))
 
-test
+big_table
 
 
 #, by = c("X.Intercept.", "fdom_qsu", "reserve", "season", "sensor_rfu", "temp", "turb", "fdom_qsu.temp", "sensor_rfu.temp", "sensor_rfu.turb", "df", "family")
