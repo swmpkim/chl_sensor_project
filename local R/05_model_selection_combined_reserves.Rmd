@@ -242,14 +242,19 @@ About the same. (not worse, so that's.... something?)
 # Summary Table for main models  
 
 ```{r}
-cv_test_errors <- bind_rows(ols.cv.df, ols.nofdomcv.df)
+cv_test_errors <- bind_rows(ols.cv.df, ols.nofdomcv.df) %>% 
+  select(-family)
 
 test <- data.frame(all.sel) %>% 
-    left_join(., cv_test_errors) %>% 
+    full_join(., cv_test_errors) %>% 
     dplyr::select(model, AICc, pred_test_error, everything()) %>% 
-    select(-family, -delta, -weight)
+    select(-family, -delta, -weight) %>% 
+  mutate(across(c(AICc, pred_test_error), ~round(., 2)))
 
 test
+
+
+#, by = c("X.Intercept.", "fdom_qsu", "reserve", "season", "sensor_rfu", "temp", "turb", "fdom_qsu.temp", "sensor_rfu.temp", "sensor_rfu.turb", "df", "family")
 ```
 
 
