@@ -307,20 +307,32 @@ mean(full.lmm.errors)
 mean(nofdom.lmm.errors)
 mean(full.lmm.noRanEff.errors)
 mean(nofdom.lmm.noRanEff.errors)
+
+lmm.nofdomcv.df <- data.frame(model.sel(no_fdom_lmm)) %>% 
+  dplyr::select(1:df) %>% 
+  mutate(pred_test_error = mean(nofdom.lmm.errors),
+         pred_test_NoReserve_error = mean(nofdom.lmm.noRanEff.errors))
+
+lmm.cv.df <- data.frame(model.sel(lmm.1)) %>% 
+  dplyr::select(1:df) %>% 
+  mutate(pred_test_error = mean(full.lmm.errors),
+         pred_test_NoReserve_error = mean(full.lmm.noRanEff.errors))
 ```
 
 
 # Summary Table for main models  
 
 ```{r}
-cv_test_errors <- bind_rows(ols.cv.df, ols.nofdomcv.df) %>% 
+cv_test_errors <- bind_rows(ols.cv.df, ols.nofdomcv.df,
+                            lmm.cv.df, lmm.nofdomcv.df) %>% 
   select(-family)
 
 big_table <- data.frame(all.sel) %>% 
     full_join(., cv_test_errors) %>% 
-    dplyr::select(model, AICc, pred_test_error, everything()) %>% 
+    dplyr::select(model, AICc, pred_test_error, pred_test_NoReserve_error,
+                  everything()) %>% 
     select(-family, -delta, -weight) %>% 
-  mutate(across(c(AICc, pred_test_error), ~round(., 2)))
+  mutate(across(c(AICc, pred_test_error, pred_test_NoReserve_error), ~round(., 2)))
 
 big_table
 
