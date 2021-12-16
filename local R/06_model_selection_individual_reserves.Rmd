@@ -1,6 +1,6 @@
 ---
 title: "Individual Reserve Models"
-date: "12/9/2021"
+date: "original: 2021-12-09; latest update: `r Sys.Date()`"
 output: 
     html_document:
         code_folding: hide
@@ -21,6 +21,7 @@ library(ggplot2)
 library(patchwork)
 library(lmerTest)
 library(MuMIn)
+library(boot)
 
 load(here::here("data", "subset_no_NA.RData"))
 
@@ -32,15 +33,23 @@ op <- par()
 options(na.action = "na.fail")
 ```
 
-
-One manipulation of data frame so I can code this up and make a final decision on a transformation later: generate a column called `response` that will be used in the models. If we decide on a square-root transformation, response will be calculated as `sqrt(extracted)`. That's what I'll work with for now but it can be changed to `extracted^(1/3)` or something different, and we should still be able to generate all relevant outputs.  
-
 ```{r}
 dat$response <- sqrt(dat$extracted)
 ```
 
 
 For each reserve, want to pull out that data, model, and dredge.  
+
+```{r}
+# hand-written cost function for cross-validation
+cost <- function(obs, expt){
+    median(
+        abs(
+            100 * (obs^2-expt^2) / ((obs^2+expt^2)/2)
+        )
+    )
+}
+```
 
 
 # Loop through reserves and run models  
@@ -49,26 +58,62 @@ For each reserve, want to pull out that data, model, and dredge.
 mod_sel_out <- list()
 mod_summs_out <- list()
 reserves <- unique(dat$reserve)
+set.seed(1216)
 
 for(i in seq_along(reserves)){
     res <- dat %>% 
         filter(reserve == reserves[i])
+
+    if(length(unique(res$season))>=2){  
+        
+        full_ols <- glm(response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + sensor_rfu*temp + fdom_qsu*temp + season, data = res)
+        no_fdom_ols <- glm(response ~ sensor_rfu + turb +  sensor_rfu*turb + temp + sensor_rfu*temp + season, data = res)
+                           
+                           } else {
+                               
+            full_ols <- glm(response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + sensor_rfu*temp + fdom_qsu*temp, data = res)
+            
+            no_fdom_ols <- glm(response ~ sensor_rfu + turb +  sensor_rfu*turb + temp + sensor_rfu*temp, data = res)
+        }
     
-    full_ols <- lm(response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + month, data = res)
+    rfu_only <- glm(response ~ sensor_rfu, data = res)
     
     sel <- dredge(full_ols, 
                   fixed = "sensor_rfu",
                   extra = c("R^2", "AdjR^2" = function(x) summary(x)$adj.r.squared))
     
-    # see anything with delta AICc < 5
-    mod_sel_out[[i]] <- subset(sel, delta < 5)
+    # perform cross-validation on top model to find median prediction error
+    ols.1 <- get.models(sel, 1)[[1]]
+    ols.cv <- cv.glm(res, ols.1, cost, K = 5)
+    
+    no_fdom.cv <- cv.glm(res, no_fdom_ols, cost, K=5)
+    no_fdom.df <- data.frame(model.sel(no_fdom_ols))
+    no_fdom.df$pred_test_error <- round(no_fdom.cv$delta[1], 2)
+    
+    rfu_only.cv <- cv.glm(res, rfu_only, cost, K=5)
+    rfu_only.df <- data.frame(model.sel(rfu_only))
+    rfu_only.df$pred_test_error <- round(rfu_only.cv$delta[1], 2)
+    
+
+    # see anything with delta AICc < 3
+    subdf <- data.frame(subset(sel, delta < 3))
+    subdf$pred_test_error <- NA_real_
+    subdf$pred_test_error[1] <- round(ols.cv$delta[1], 2)
+    subdf <- subdf %>% 
+        bind_rows(no_fdom.df, rfu_only.df) %>% 
+        select(AICc, R.2, pred_test_error, everything())
+    
+    # attach prediction error to it
+    mod_sel_out[[i]] <- subdf
     
     # summary for top model
-    mod_summs_out[[i]] <- summary(get.models(sel, 1)[[1]])
+    mod_summs_out[[i]] <- summary(ols.1)
     
-    # predict? on validation data? and/or fitted values?  
+      
 }
+```
 
+```{r}
 mod_sel_out <- purrr::set_names(mod_sel_out, reserves)
 mod_summs_out <- purrr::set_names(mod_summs_out, reserves)
 ```

@@ -1,6 +1,6 @@
 ---
 title: "Model for all reserves combined"
-date: "original: 12/8/2021; latest update: `r Sys.Date()`"
+date: "original: 2021-12-08; latest update: `r Sys.Date()`"
 output: 
     html_document:
         code_folding: hide
@@ -299,6 +299,8 @@ for (i in 1:K){
   nofdom.lmm.errors[i] <- sMdAPE(obs = val$extracted, expt = preds.lmm.nofdom)
   full.lmm.noRanEff.errors[i] <- sMdAPE(obs = val$extracted, expt = preds.lmm2)
   nofdom.lmm.noRanEff.errors[i] <- sMdAPE(obs = val$extracted, expt = preds.lmm2.nofdom)
+  
+  # could probably also generate R^2 values from doing a correlation between predicted and fitted? (from model output; not back-transformed?)
 }
 ```
 
