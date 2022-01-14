@@ -1,0 +1,247 @@
+---
+title: "Model for all reserves combined; for reporting"
+date: 'original: 2021-12-08; latest update: `r Sys.Date()`'
+output:
+  word_document:
+    toc: yes
+  html_document:
+    code_folding: hide
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+This is almost the same as `05b_combinedReserves_TankOnly`, but I cut out a lot of the experimentation and the LMMs.  
+
+
+# Setup  
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(patchwork)
+library(lmerTest)
+library(MuMIn)
+library(boot)
+
+load(here::here("data", "subset_no_NA.RData"))
+table(dat$method)
+dat <- filter(dat, method == "tank")
+
+# original plot settings, for later
+op <- par()
+
+# options, for MuMIn operations
+# will prevent fitting sub-models to different datasets (from help file)
+options(na.action = "na.fail")
+```
+
+`response` column to use in models. Originally was unsure what transformation would be and wanted to be flexible. We decided as a group that square-root is okay.  
+
+This means model predictions need to be squared to provide a meaningful estimate of chlorophyll.  
+
+```{r}
+dat$response <- sqrt(dat$extracted)
+```
+
+
+# Modeling  
+
+**SEE `MuMIn::dredge()` and `MuMIn::mod.sel()`**  
+
+`dredge()` will check all possible subsets of the model you give it. Can force it to keep a given term with `fixed = `.  This can be a bad idea if it causes you to consider implausible models! The only variables included in this dataframe though are ones that we want to know if we could keep or drop. 
+
+
+## Model 1: Full Model, OLS  
+
+Includes all interactions between sensor_rfu, turbidity, and FDOM. Additionally, temp\*rfu and temp\*fdom. Hoping we can actually drop some of these.  
+
+Reserve included as fixed effect.  
+
+response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu\*turb\*fdom_qsu + sensor_rfu\*turb + sensor_rfu\*fdom_qsu + turb\*fdom_qsu + temp + sensor_rfu\*temp + fdom_qsu\*temp + season + reserve
+
+Fit model:  
+
+```{r}
+full_ols <- glm(response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + sensor_rfu*temp + fdom_qsu*temp + season + reserve, data = dat)
+```
+
+***  
+
+
+
+***  
+
+# Model Selection  
+
+## OLS  
+
+### Full model    
+
+for delta AICc < 2 from top model  
+
+```{r}
+sel.ols <- dredge(full_ols, 
+                  fixed = "sensor_rfu",
+                  extra = c("R^2", "AdjR^2" = function(x) summary(x)$adj.r.squared))
+
+top.ols <- subset(sel.ols, delta < 2) %>% 
+    mutate(model = "top.ols")
+```
+
+FDOM is in here, as are many interactions, but the coefficients are SO small.  
+
+Reserve is still in all of the top ones, so we really can't just extrapolate.  Unlike the model using both tank and isco, season doesn't show up in most of the top ones.  
+
+### OLS, no FDOM    
+
+....if we drop FDOM and all its interactions, what do we get.  
+
+```{r}
+no_fdom_ols <- glm(response ~ sensor_rfu + turb + sensor_rfu*turb + temp + sensor_rfu*temp + season + reserve, data = dat)
+
+# think I used glm because of mumin package adn cross-validation, but can get r^2 from regular lm command
+
+no_fdom_ols_lm <- lm(response ~ sensor_rfu + turb + sensor_rfu*turb + temp + sensor_rfu*temp + season + reserve, data = dat)
+summary(no_fdom_ols_lm)$r.squared
+
+no.fdom.ols <- model.sel(no_fdom_ols) %>% 
+    mutate(model = "no.fdom.ols")
+```
+
+
+```{r}
+# summary(get.models(sel, 1)[[1]])
+```
+ 
+
+
+
+# Table of coefficients and diagnostics    
+
+```{r}
+all.sel <- bind_rows(top.ols, no.fdom.ols)
+
+all.sel[9, "R^2"] <- summary(no_fdom_ols_lm)$r.squared
+```
+
+# Cross-validation and prediction error  
+
+Using only THE top model for each of OLS and LMM, plus the no-FDOM models  
+
+```{r}
+ols.1 <- get.models(sel.ols, 1)[[1]]
+# predict(ols.1, newdata = dat)
+
+# regular old RMSE
+ols.cv <- cv.glm(dat, ols.1, K = 5)
+# ols.cv$delta
+```
+
+The model predictions are the square root of what we're actually interested in, and I want accuracy for the back-transformed predictions/estimates.  
+
+# Cost Function for sMdAPE  
+
+```{r}
+cost <- function(obs, expt){
+    median(
+        abs(
+            100 * (obs^2-expt^2) / ((obs^2+expt^2)/2)
+        )
+    )
+}
+```
+
+## Cross-validation for OLS models   
+
+```{r}
+ols.cv <- cv.glm(dat, ols.1, cost, K = 10)
+ols.cv$delta
+
+ols.cv.df <- data.frame(model.sel(ols.1))%>% 
+    dplyr::select(1:df)
+ols.cv.df$pred_test_error <- ols.cv$delta[1]
+```
+
+
+Is no FDOM any better?  
+
+```{r}
+ols.nofdom.cv <- cv.glm(dat, no_fdom_ols, cost, K = 10)
+ols.nofdom.cv$delta
+
+
+ols.nofdomcv.df <- data.frame(model.sel(no_fdom_ols)) %>% 
+    dplyr::select(1:df)
+ols.nofdomcv.df$pred_test_error <- ols.nofdom.cv$delta[1]
+```
+
+About the same. (not worse, so that's.... something?)   
+
+
+# Summary Table for main models  
+
+```{r}
+cv_test_errors <- bind_rows(ols.cv.df, ols.nofdomcv.df) %>% 
+  select(-family)
+
+big_table <- data.frame(all.sel) %>% 
+    full_join(., cv_test_errors) %>% 
+    dplyr::select(model, AICc, pred_test_error, 
+                  everything()) %>% 
+    select(-family, -delta, -weight) %>% 
+  mutate(across(c(AICc, pred_test_error), ~round(., 2)))
+
+big_table
+
+
+#, by = c("X.Intercept.", "fdom_qsu", "reserve", "season", "sensor_rfu", "temp", "turb", "fdom_qsu.temp", "sensor_rfu.temp", "sensor_rfu.turb", "df", "family")
+```
+
+
+There are EIGHT models within 2 AIC units of each other. In the paper, we'll only present the output from the top one. The differences (as seen above) are in 1) whether season is included in the model, and 2) interactions: specifically FDOM\*turb, and FDOM\*RFU\*turb.  
+
+Also, the "no FDOM" model has much higher AICc (724.9 vs. 702.9) but only slightly more median prediction error (27.99 vs. 27.10).  
+
+
+# FOR DISPLAYING  
+
+For displaying, then:  
+
+```{r}
+big_table[c(1, 9), ] %>% 
+  select(-fdom_qsu.turb) %>% 
+  knitr::kable(digits = c(2, 2, 2, 2, 4, 2, 2, 4, 4, 4, 4, 5, 4, 
+                          4, 4, 4, 3, 2, 2))
+```
+
+
+# Graphics  
+
+```{r}
+dat2 <- dat %>% 
+    mutate(preds_ols = (predict(ols.1, newdata = dat))^2,
+           preds_nofdom_ols = (predict(no_fdom_ols, newdata = dat))^2)%>% 
+    arrange(extracted) %>% 
+    mutate(rownum = row_number())
+```
+
+
+```{r}
+ggplot(dat2, aes(x = rownum)) +
+    geom_point(aes(y = preds_ols, shape = "OLS", color = reserve), alpha = 0.5) +
+    geom_point(aes(y = preds_nofdom_ols, shape = "OLS, no FDOM", color = reserve), alpha = 0.5) +
+    geom_point(aes(y = extracted, shape = "Extracted", color = reserve), size = 3, alpha = 0.6) +
+    labs(title = "Chl predictions, OLS models only",
+         x = "row number in data (sorted from smallest to largest chl a",
+         y = "ug/L, extracted or predicted",
+         color = "Reserve",
+         shape = "Model")
+```
+

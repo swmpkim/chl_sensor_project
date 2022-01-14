@@ -1,5 +1,5 @@
 ---
-title: "Individual Reserve Models"
+title: "Individual Reserve Models: Tank Only"
 date: "original: 2021-12-09; latest update: `r Sys.Date()`"
 output: 
     html_document:
@@ -24,6 +24,8 @@ library(MuMIn)
 library(boot)
 
 load(here::here("data", "subset_no_NA.RData"))
+table(dat$method)
+dat <- filter(dat, method == "tank")
 
 # original plot settings, for later
 op <- par()
@@ -57,6 +59,8 @@ cost <- function(obs, expt){
 
 # Loop through reserves and run models  
 
+Using leave-one-out cross-validation due to low number of samples for some reserves and potential to introduce new factor levels on validation set.  
+
 ```{r}
 mod_sel_out <- list()
 mod_summs_out <- list()
@@ -87,13 +91,13 @@ for(i in seq_along(reserves)){
     
     # perform cross-validation on top model to find median prediction error
     ols.1 <- get.models(sel, 1)[[1]]
-    ols.cv <- cv.glm(res, ols.1, cost, K = 5)
+    ols.cv <- cv.glm(res, ols.1, cost)
     
-    no_fdom.cv <- cv.glm(res, no_fdom_ols, cost, K=5)
+    no_fdom.cv <- cv.glm(res, no_fdom_ols, cost)
     no_fdom.df <- data.frame(model.sel(no_fdom_ols))
     no_fdom.df$pred_test_error <- round(no_fdom.cv$delta[1], 2)
     
-    rfu_only.cv <- cv.glm(res, rfu_only, cost, K=5)
+    rfu_only.cv <- cv.glm(res, rfu_only, cost)
     rfu_only.df <- data.frame(model.sel(rfu_only))
     rfu_only.df$pred_test_error <- round(rfu_only.cv$delta[1], 2)
     
