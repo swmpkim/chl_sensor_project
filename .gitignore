@@ -4,10 +4,17 @@
 .Rdata
 .httr-oauth
 .DS_Store
+PDB Diel Deployment.csv
+data/chla_GND_2.0.xlsx
 
 # file types
 *.docx
 *.msg
+*.zip
+*.pdf
+*.html  
 
 # folders
 Analysis Plan/
+Literature-20201215T165239Z-001/
+Proposal/
