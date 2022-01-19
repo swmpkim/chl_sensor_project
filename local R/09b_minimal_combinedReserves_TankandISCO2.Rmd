@@ -220,7 +220,7 @@ big_table[c(1, 3), ] %>%
                           4, 4, 4, 5, 5, 4, 
                           3, 2, 2))
 
-coeffs <- big_table[c(1, 9), ] %>% 
+coeffs <- big_table[c(1, 3), ] %>% 
   select(-fdom_qsu.turb)
 write.csv(coeffs, file = here::here("model_coeffs",                                     "AllRes_TankAndISCO.csv"), row.names = FALSE)
 ```

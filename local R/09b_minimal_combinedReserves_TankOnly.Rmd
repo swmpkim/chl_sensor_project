@@ -2,10 +2,10 @@
 title: "Model for all reserves combined; for reporting"
 date: 'original: 2021-12-08; latest update: `r Sys.Date()`'
 output:
-  word_document:
-    toc: yes
   html_document:
     code_folding: hide
+    toc: yes
+  word_document:
     toc: yes
 ---
 

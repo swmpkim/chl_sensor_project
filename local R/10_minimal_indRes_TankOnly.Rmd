@@ -149,11 +149,11 @@ may want to only use an indicator if interactions are present? e.g. show coeffic
 
 ```{r}
 mod_sel_df <- bind_rows(mod_sel_out, .id = "Reserve") %>% 
-  select(Reserve, model, R.2, pred_test_error, AICc,
+  select(Reserve, model, AICc, R.2, pred_test_error, 
          sensor_rfu, fdom_qsu, turb, 
          season, temp, everything())
 knitr::kable(mod_sel_df,
-             digits = c(2, 2, 3, 2, 2, 4, 4, 
+             digits = c(2, 2, 2, 3, 2, 4, 4, 
                         4, 4, 4, 4, 4, 4, 4, 
                         4, 4, 2, 2))
 
