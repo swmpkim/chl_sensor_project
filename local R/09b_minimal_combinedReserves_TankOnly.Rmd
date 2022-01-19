@@ -219,6 +219,10 @@ big_table[c(1, 9), ] %>%
   select(-fdom_qsu.turb) %>% 
   knitr::kable(digits = c(2, 2, 2, 2, 4, 2, 2, 4, 4, 4, 4, 5, 4, 
                           4, 4, 4, 3, 2, 2))
+
+coeffs <- big_table[c(1, 9), ] %>% 
+  select(-fdom_qsu.turb)
+write.csv(coeffs, file = here::here("model_coeffs",                                     "AllRes_TankOnly.csv"), row.names = FALSE)
 ```
 
 

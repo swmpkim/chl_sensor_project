@@ -156,6 +156,9 @@ knitr::kable(mod_sel_df,
              digits = c(2, 2, 3, 2, 2, 4, 4, 
                         4, 4, 4, 4, 4, 4, 4, 
                         4, 4, 2, 2))
+
+write.csv(mod_sel_df, file = here::here("model_coeffs",
+                                        "IndRes_TankOnly.csv"), row.names = FALSE)
 ```
 
 
