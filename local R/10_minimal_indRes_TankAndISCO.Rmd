@@ -1,0 +1,167 @@
+---
+title: "Individual Reserve Models: Tank and ISCO"
+date: "original: 2021-12-09; latest update: `r Sys.Date()`"
+output: 
+    html_document:
+        code_folding: hide
+        toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(ggplot2)
+library(patchwork)
+library(lmerTest)
+library(MuMIn)
+library(boot)
+
+load(here::here("data", "subset_no_NA.RData"))
+table(dat$method)
+# dat <- filter(dat, method == "tank")
+
+# original plot settings, for later
+op <- par()
+
+# options, for MuMIn operations
+# will prevent fitting sub-models to different datasets (from help file)
+options(na.action = "na.fail")
+```
+
+```{r}
+dat$response <- sqrt(dat$extracted)
+```
+
+
+For each reserve, want to pull out that data, model, and dredge.  
+
+```{r}
+# hand-written cost function for cross-validation
+# customized because the response variable was a square root
+# so in this function, am squaring both observed and expected values
+# to get the back-transformed predictions
+cost <- function(obs, expt){
+    median(
+        abs(
+            100 * (obs^2-expt^2) / ((obs^2+expt^2)/2)
+        )
+    )
+}
+```
+
+
+# Loop through reserves and run models  
+
+Using leave-one-out cross-validation due to low number of samples for some reserves and potential to introduce new factor levels on validation set.  
+
+```{r}
+mod_sel_out <- list()
+mod_summs_out <- list()
+reserves <- unique(dat$reserve)
+set.seed(1216)
+
+for(i in seq_along(reserves)){
+    res <- dat %>% 
+        filter(reserve == reserves[i])
+
+    if(length(unique(res$season))>=2){  
+        
+        full_ols <- glm(response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + sensor_rfu*temp + fdom_qsu*temp + season, data = res)
+        no_fdom_ols <- glm(response ~ sensor_rfu + turb +  sensor_rfu*turb + temp + sensor_rfu*temp + season, data = res)
+        no_fdom_lm <- lm(response ~ sensor_rfu + turb +  sensor_rfu*turb + temp + sensor_rfu*temp + season, data = res)
+                           
+                           } else {
+                               
+            full_ols <- glm(response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + sensor_rfu*temp + fdom_qsu*temp, data = res)
+            
+            no_fdom_ols <- glm(response ~ sensor_rfu + turb +  sensor_rfu*turb + temp + sensor_rfu*temp, data = res)
+            no_fdom_lm <- lm(response ~ sensor_rfu + turb +  sensor_rfu*turb + temp + sensor_rfu*temp, data = res)
+        }
+    
+    rfu_only <- glm(response ~ sensor_rfu, data = res)
+    rfu_only_lm <- lm(response ~ sensor_rfu, data = res)
+    
+    sel <- dredge(full_ols, 
+                  fixed = "sensor_rfu",
+                  extra = c("R^2", "AdjR^2" = function(x) summary(x)$adj.r.squared))
+    
+    # perform cross-validation on top model to find median prediction error
+    ols.1 <- get.models(sel, 1)[[1]]
+    ols.cv <- cv.glm(res, ols.1, cost)
+    
+    no_fdom.cv <- cv.glm(res, no_fdom_ols, cost)
+    no_fdom.df <- data.frame(model.sel(no_fdom_ols))
+    no_fdom.df$pred_test_error <- round(no_fdom.cv$delta[1], 2)
+    
+    rfu_only.cv <- cv.glm(res, rfu_only, cost)
+    rfu_only.df <- data.frame(model.sel(rfu_only))
+    rfu_only.df$pred_test_error <- round(rfu_only.cv$delta[1], 2)
+    
+    # pull out R^2s from lms (glms were run for cross-validation but really they're just regular linear models)
+    no_fdom.df$R.2 <- round(summary(no_fdom_lm)$r.squared, 4)
+    rfu_only.df$R.2 <- round(summary(rfu_only_lm)$r.squared, 4)
+    
+
+    # see anything with delta AICc < 2
+    # subdf <- data.frame(subset(sel, delta < 2))
+    
+    # only top one
+    subdf <- data.frame(sel[1])
+    subdf$pred_test_error <- round(ols.cv$delta[1], 2)
+    subdf <- subdf %>% 
+      bind_rows(no_fdom.df, rfu_only.df) %>% 
+      rownames_to_column(var = "model") %>% 
+      mutate(model = case_when(model == "...1" ~ "best_AIC",
+                               TRUE ~ model)) %>% 
+      select(model, AICc, R.2, pred_test_error, everything()) %>% 
+      select(-c(delta, weight, family))
+    
+    # attach prediction error to it
+    mod_sel_out[[i]] <- subdf
+    
+    # summary for top model
+    mod_summs_out[[i]] <- summary(ols.1)
+    
+      
+}
+```
+
+```{r}
+mod_sel_out <- purrr::set_names(mod_sel_out, reserves)
+mod_summs_out <- purrr::set_names(mod_summs_out, reserves)
+```
+
+
+# FOR DISPLAY  
+
+# Model selection table, by reserve  
+# Tank + ISCO Data  
+
+may want to only use an indicator if interactions are present? e.g. show coefficients for RFU, FDOM, Turbidity, and only yes/no for others?  
+
+```{r}
+mod_sel_df <- bind_rows(mod_sel_out, .id = "Reserve") %>% 
+  select(Reserve, model, R.2, pred_test_error, AICc,
+         sensor_rfu, fdom_qsu, turb, 
+         season, temp, everything())
+knitr::kable(mod_sel_df,
+             digits = c(2, 2, 3, 2, 2, 4, 4, 
+                        4, 4, 4, 4, 4, 4, 4, 
+                        4, 4, 2, 2))
+```
+
+
+# Top model summary by reserve  
+
+```{r}
+mod_summs_out
+```
+
