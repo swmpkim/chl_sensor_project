@@ -12,11 +12,14 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r, message = FALSE, warning = FALSE}
 library(tidyverse)
 library(readxl)
+library(patchwork)
 files_allRes <- c("AllRes_TankAndISCO", "AllRes_TankOnly")
 files_indRes <- c("IndRes_TankAndISCO", "IndRes_TankOnly")
 ```
 
 # Individual Reserve Models  
+
+## Tank and ISCO  
 
 ```{r}
 dat <- read_csv(here::here("model_coeffs",
@@ -32,11 +35,40 @@ dat_cleaner <- dat %>%
            across(c(X.Intercept.:fdom_qsu.sensor_rfu.turb), 
                   ~case_when(. < 0 ~ "-",
                              . >= 0 ~ "+")))
+```
 
+```{r}
 write_csv(dat_cleaner, here::here("model_coeffs", 
                                   paste0(files_indRes[[1]], "_clean.csv")),
           na = "")
 ```
+
+```{r}
+ind_ti_r2 <- ggplot(dat_cleaner,
+                 aes(x = Reserve,
+                     y = R.2,
+                     color = model,
+                     shape = model)) +
+    geom_point(alpha = 0.7, size = 2) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_color_brewer(palette = "Set1") +
+    labs(x = NULL, y = NULL)
+
+ind_ti_error <- ggplot(dat_cleaner,
+                 aes(x = Reserve,
+                     y = prediction_error,
+                     color = model,
+                     shape = model)) +
+    geom_point(alpha = 0.7, size = 2) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_color_brewer(palette = "Set1") +
+    labs(x = NULL, y = NULL)
+```
+
+
+## Tank Only  
 
 ```{r}
 dat <- read_csv(here::here("model_coeffs",
@@ -52,11 +84,75 @@ dat_cleaner <- dat %>%
            across(c(X.Intercept.:fdom_qsu.sensor_rfu.turb), 
                   ~case_when(. < 0 ~ "-",
                              . >= 0 ~ "+")))
+```
 
+```{r}
 write_csv(dat_cleaner, here::here("model_coeffs", 
                                   paste0(files_indRes[[2]], "_clean.csv")),
           na = "")
 ```
+
+
+
+```{r}
+ind_t_r2 <- ggplot(dat_cleaner,
+                 aes(x = Reserve,
+                     y = R.2,
+                     color = model,
+                     shape = model)) +
+    geom_point(alpha = 0.7, size = 2) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_color_brewer(palette = "Set1") +
+    labs(x = NULL, y = NULL)
+
+ind_t_error <- ggplot(dat_cleaner,
+                 aes(x = Reserve,
+                     y = prediction_error,
+                     color = model,
+                     shape = model)) +
+    geom_point(alpha = 0.7, size = 2) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_color_brewer(palette = "Set1") +
+    labs(x = NULL, y = NULL)
+```
+
+
+```{r}
+# set up patchwork arrangement
+# https://stackoverflow.com/a/60354844
+
+row1 <- ggplot() + annotate(geom = 'text', x=1, y=1, label=expression("R"^"2"), angle = 90) + theme_void() 
+
+row2 <- ggplot() + annotate(geom = 'text', x=1, y=1, label="Median Absolute \nPercent Error", angle = 90) + theme_void() 
+
+col1 <- ggplot() + annotate(geom = 'text', x=1, y=1, label="Tank + ISCO") + theme_void() 
+
+col2 <- ggplot() + annotate(geom = 'text', x=1, y=1, label="Tank Only") + theme_void() 
+
+layoutplot <- "
+#cccddd
+aeeefff
+aeeefff
+bggghhh
+bggghhh
+"
+
+plotlist <- list(a = row1, b = row2, c = col1, d = col2, e= ind_ti_r2, f=ind_t_r2, g=ind_ti_error, h=ind_t_error)
+
+wrap_plots(plotlist, guides = 'collect', design = layoutplot)
+```
+
+
+
+```{r}
+(ind_ti_r2 + ind_t_r2) / (ind_ti_error + ind_t_error) +
+  plot_layout(guides = 'collect')
+```
+
+
+
 
 # All Reserves  
 
@@ -74,7 +170,9 @@ dat_cleaner <- dat %>%
            across(c(X.Intercept.:fdom_qsu.sensor_rfu.turb), 
                   ~case_when(. < 0 ~ "-",
                              . >= 0 ~ "+")))
+```
 
+```{r}
 write_csv(dat_cleaner, here::here("model_coeffs", 
                                   paste0(files_allRes[[1]], "_clean.csv")),
           na = "")
@@ -95,7 +193,9 @@ dat_cleaner <- dat %>%
            across(c(X.Intercept.:fdom_qsu.sensor_rfu.turb), 
                   ~case_when(. < 0 ~ "-",
                              . >= 0 ~ "+")))
+```
 
+```{r}
 write_csv(dat_cleaner, here::here("model_coeffs", 
                                   paste0(files_allRes[[2]], "_clean.csv")),
           na = "")
