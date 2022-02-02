@@ -1,0 +1,102 @@
+---
+title: "Simplified coefficient tables"
+author: "Kim Cressman"
+date: "2/2/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(readxl)
+files_allRes <- c("AllRes_TankAndISCO", "AllRes_TankOnly")
+files_indRes <- c("IndRes_TankAndISCO", "IndRes_TankOnly")
+```
+
+# Individual Reserve Models  
+
+```{r}
+dat <- read_csv(here::here("model_coeffs",
+                           paste0(files_indRes[[1]], ".csv")))
+
+dat_cleaner <- dat %>% 
+    select(Reserve, model, AICc, R.2, prediction_error = pred_test_error,
+           sensor_rfu, fdom_qsu, turb, temp, season,
+           everything()) %>% 
+    mutate(across(c(AICc, prediction_error), round, 2),
+           across(c(R.2, sensor_rfu), round, 3),
+           across(c(fdom_qsu, turb, temp), round, 4),
+           across(c(X.Intercept.:fdom_qsu.sensor_rfu.turb), 
+                  ~case_when(. < 0 ~ "-",
+                             . >= 0 ~ "+")))
+
+write_csv(dat_cleaner, here::here("model_coeffs", 
+                                  paste0(files_indRes[[1]], "_clean.csv")),
+          na = "")
+```
+
+```{r}
+dat <- read_csv(here::here("model_coeffs",
+                           paste0(files_indRes[[2]], ".csv")))
+
+dat_cleaner <- dat %>% 
+    select(Reserve, model, AICc, R.2, prediction_error = pred_test_error,
+           sensor_rfu, fdom_qsu, turb, temp, season,
+           everything()) %>% 
+    mutate(across(c(AICc, prediction_error), round, 2),
+           across(c(R.2, sensor_rfu), round, 3),
+           across(c(fdom_qsu, turb, temp), round, 4),
+           across(c(X.Intercept.:fdom_qsu.sensor_rfu.turb), 
+                  ~case_when(. < 0 ~ "-",
+                             . >= 0 ~ "+")))
+
+write_csv(dat_cleaner, here::here("model_coeffs", 
+                                  paste0(files_indRes[[2]], "_clean.csv")),
+          na = "")
+```
+
+# All Reserves  
+
+```{r}
+dat <- read_csv(here::here("model_coeffs",
+                           paste0(files_allRes[[1]], ".csv")))
+
+dat_cleaner <- dat %>% 
+    select(model, AICc, R.2, prediction_error = pred_test_error,
+           sensor_rfu, fdom_qsu, turb, temp, season,
+           everything()) %>% 
+    mutate(across(c(AICc, prediction_error), round, 2),
+           across(c(R.2, sensor_rfu), round, 3),
+           across(c(fdom_qsu, turb, temp), round, 4),
+           across(c(X.Intercept.:fdom_qsu.sensor_rfu.turb), 
+                  ~case_when(. < 0 ~ "-",
+                             . >= 0 ~ "+")))
+
+write_csv(dat_cleaner, here::here("model_coeffs", 
+                                  paste0(files_allRes[[1]], "_clean.csv")),
+          na = "")
+```
+
+
+```{r}
+dat <- read_csv(here::here("model_coeffs",
+                           paste0(files_allRes[[2]], ".csv")))
+
+dat_cleaner <- dat %>% 
+    select(model, AICc, R.2, prediction_error = pred_test_error,
+           sensor_rfu, fdom_qsu, turb, temp, season,
+           everything()) %>% 
+    mutate(across(c(AICc, prediction_error), round, 2),
+           across(c(R.2, sensor_rfu), round, 3),
+           across(c(fdom_qsu, turb, temp), round, 4),
+           across(c(X.Intercept.:fdom_qsu.sensor_rfu.turb), 
+                  ~case_when(. < 0 ~ "-",
+                             . >= 0 ~ "+")))
+
+write_csv(dat_cleaner, here::here("model_coeffs", 
+                                  paste0(files_allRes[[2]], "_clean.csv")),
+          na = "")
+```
