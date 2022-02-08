@@ -28,7 +28,19 @@ This document pulls together all the model-running and coefficient-presenting co
 
 # Data Import and Summaries  
 
-```{r, child = '03_starting_over.Rmd', envir = environment()}
+```{r, child = '03_starting_over.Rmd'}
 
 ```
+
+
+# Exploring Possible Transformations of Response  
+
+Fitting a linear model with all possible predictors, then evaluating residuals and predictive performance in a rough way to see which transformation works best. This exploration led to the decision to use a square-root transformation and all following model selection will be based on square-root transformation of the response variable (extracted chlorophyll).  
+
+```{r, child = '04_new_models_and_transformations.Rmd'}
+
+```
+
+
+# Generating statistical models  
 
