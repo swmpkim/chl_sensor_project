@@ -21,12 +21,33 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 library(patchwork)
+library(lmerTest)
+library(MuMIn)
+library(boot)
+
+# cost function for sMdAPE (symmetric median absolute percent error)  
+# works on square-root transformed response variable  
+cost <- function(obs, expt){
+    median(
+        abs(
+            100 * (obs^2-expt^2) / ((obs^2+expt^2)/2)
+        )
+    )
+}
 ```
 
 
 This document pulls together all the model-running and coefficient-presenting code, by using previous scripts as child documents.  
 
 # Data Import and Summaries  
+
+A few notes.  
+
++  NIW collected tank samples from one site and ISCO samples from a different site. Due to their concerns about pooling data from the two sites (they are very different environments), I created a 'NIW_isco' reserve ID to differentiate.  
++  For a similar reason, I created a 'HEE_w2' reserve ID for the site where He'eia started getting samples for this project, but the water is so clear that the sensor wasn't working well. Figured I'd separate it out.  
++  GRB used 8 different stations throughout. *I did not differentiate.* If models fit poorly for this reserve, this could be a reason.  
++  PDB used 3 differents stations, and again I did not differentiate.  
++  I made up a station ID for Sapelo because they did not use a normal SWMP station. I called it 'sapnawq' (for 'N/A', ha)  
 
 ```{r, child = '03_starting_over.Rmd'}
 
@@ -42,5 +63,20 @@ Fitting a linear model with all possible predictors, then evaluating residuals a
 ```
 
 
-# Generating statistical models  
+Initial data and model exploration (not shown in this document; see instead the older `01_first_models_and_transformations` files) suggested that distinguishing between ISCO and tank samples at a site did not improve the model (no better AIC than lumping). However, due to huge anecdotal differences at two reserves (GTM and LKS) and the potential for differences at other reserves, models will be run both ways: with all data (Tank + ISCO), and with tank-only data.    
+
+# Models: All Reserves Combined; Tank + ISCO  
+
+
+```{r, child = '09b_minimal_combinedReserves_TankandISCO2.Rmd'}
+
+
+```
+
+
+# Models: All Reserves Combined; Tank Only  
+
+```{r, child = '09b_minimal_combinedReserves_TankOnly.Rmd'}
+
+```
 
