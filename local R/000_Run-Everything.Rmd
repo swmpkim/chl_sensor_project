@@ -1,0 +1,34 @@
+---
+title: "Repeatable Modelling Workflow"
+author: "Kim Cressman"
+date: "created 2022-02-08; latest update `r Sys.Date()`"
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(patchwork)
+```
+
+
+This document pulls together all the model-running and coefficient-presenting code, by using previous scripts as child documents.  
+
+# Data Import and Summaries  
+
+```{r, child = '03_starting_over.Rmd', envir = environment()}
+
+```
+

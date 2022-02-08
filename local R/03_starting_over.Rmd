@@ -1,37 +1,14 @@
 ---
-date: "12/8/2021"
 output: 
-    html_document:
-        code_folding: hide
-        toc: true
+    html_document
 ---
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
-```
-
-The previous files had some extensive EDA. I did not, however, include interactions between `sensor_rfu` and anything else, and this may be important. May also change some things, but might not.  
-
-+  Square-root transformation of the response variable (`extracted`) seemed most appropriate (see `01_first_models_and_transformations`). This will be reexamined.      
-+  In that file I did not see a difference between model outputs between the predictors `sensor_ugl` vs. `sensor_rfu`, so to fit with previous conversations by the workgroup, I'll proceed using only `sensor_rfu`. This should still be valid even though interactions weren't included.  
-+  Finally, there was very little difference in model fit when including `method` (tank vs. ISCO) as when excluding it, so we do not need to include it as a variable. AIC was a bit improved without it. Again, this did not include interactions, but should still be valid.  
 
 **In this file**   
 
 +  Data will be subsetted to a data frame that does not contain ANY NAs, because model selection is based on models containing exactly the same input data.  
 +  That subset will be saved as an `.Rdata` file for easier import and reuse downstream.  
 +  Some summary statistics for the data that will be used will be generated.  
-
-
-```{r, warning = FALSE, message = FALSE}
-library(readxl)
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(patchwork)
-```
-
-# Data import and export  
+## Data import and export  
 
 re-run 12/16/2021 to incorporate new data file sent on 12/15 (GRB ISCO data had been left out of original file)  
 
@@ -47,6 +24,7 @@ dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
                               month %in% c(6, 7, 8)   ~ "Summer",
                               month %in% c(9, 10, 11) ~ "Fall")) %>% 
     select(reserve = reserve_code,
+           station = station_code,
            datetime_collected,
            month,
            season,
@@ -56,9 +34,18 @@ dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
            temp,
            turb,
            fdom_qsu) %>% 
+    mutate(station = case_when(reserve == "GND" ~ "gndblwq",
+                               reserve == "SAP" ~ "sapnawq",
+                               TRUE ~ station),
+           reserve = case_when(station == "heew2wq" ~ "HEE_w2",
+                               station == "WS" ~ "NIW_isco", # at NIW: OL is tank; WS is ISCO. These should not be pooled.
+                               TRUE ~ reserve),
+           station = case_when(station == "OL" ~ "niwolwq",
+                               station == "WS" ~ "niwwswq",
+                               TRUE ~ station)) %>% 
     drop_na() %>% 
     mutate(across(c(reserve, month, season),
-           as.factor),
+                  as.factor),
            season = forcats::fct_relevel(season, c("Winter", "Spring", "Summer", "Fall")))
 
 # save(dat, file = here::here("data", "subset_no_NA.RData"))
@@ -67,17 +54,18 @@ dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
 # load(here::here("data", "subset_no_NA.RData"))
 ```
 
-# Summary  
+## Summary  
 
-## General  
+### General  
 
 ```{r}
+dat %>% group_by(reserve) %>% count(station) %>% knitr::kable()
 summary(dat)
 nrow(dat)
 ```
 
 
-## Reserve by Month  
+### Reserve by Month  
 
 Seems like some of us didn't get the temporal spread we were wanting.  
 
@@ -97,7 +85,7 @@ dat %>%
     theme_bw()
 ```
 
-## Reserve by Season  
+### Reserve by Season  
 
 ```{r}
 table(dat$reserve, dat$season)
@@ -139,7 +127,7 @@ dat %>%
 ```
 
 
-## Correlations between predictors?  
+### Correlations between predictors?  
 
 ```{r, fig.width = 8, fig.height = 8}
 dat %>% 

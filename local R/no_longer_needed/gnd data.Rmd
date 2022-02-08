@@ -1,0 +1,46 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+```{r}
+dat <- read_excel(here::here("data", "chla_GND_2.0.xlsx"),
+                  sheet = "tank")
+```
+
+```{r}
+ggplot(dat, aes(x = chla_ugL, y = ChlorophyllRFU, col = as.factor(sample_no))) +
+    geom_point()
+    
+```
+
+```{r}
+dat2 <- dat %>% 
+    group_by(sample_no) %>% 
+    summarize(chl_ugl = mean(chla_ugL),
+              chl_fluor = mean(ChlFluor),
+              chl_rfu = mean(ChlorophyllRFU),
+              temp = mean(Temp),
+              sal = mean(Sal),
+              fdom_qsu = mean(fDOMQSU),
+              turb = mean(Turb))
+```
+
+```{r}
+pairs(dat2[,2:8])
+```
+
+```{r}
+
+```
+
