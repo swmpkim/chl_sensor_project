@@ -1,29 +1,9 @@
 ---
-title: "Individual Reserve Models: Tank Only"
-date: "original: 2021-12-09; latest update: `r Sys.Date()`"
 output: 
-    html_document:
-        code_folding: hide
-        toc: true
+    html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE,
-                      message = FALSE,
-                      warning = FALSE)
-```
-
 ```{r}
-library(readxl)
-library(dplyr)
-library(tidyr)
-library(tibble)
-library(ggplot2)
-library(patchwork)
-library(lmerTest)
-library(MuMIn)
-library(boot)
-
 load(here::here("data", "subset_no_NA.RData"))
 table(dat$method)
 dat <- filter(dat, method == "tank")
@@ -41,24 +21,31 @@ dat$response <- sqrt(dat$extracted)
 ```
 
 
-For each reserve, want to pull out that data, model, and dredge.  
+## Modeling: Individual Reserves, Tank Only  
 
-```{r}
-# hand-written cost function for cross-validation
-# customized because the response variable was a square root
-# so in this function, am squaring both observed and expected values
-# to get the back-transformed predictions
-cost <- function(obs, expt){
-    median(
-        abs(
-            100 * (obs^2-expt^2) / ((obs^2+expt^2)/2)
-        )
-    )
-}
-```
+Each of the models described below are fitted and evaluated using symmetric Median Absolute Percent Error.  
+
+**Full Model**  
+
+Includes all interactions between sensor_rfu, turbidity, and FDOM. Additionally, temp\*rfu and temp\*fdom. Hoping we can actually drop some of these.  
+
+Reserve included as fixed effect.  
+
+response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu\*turb\*fdom_qsu + sensor_rfu\*turb + sensor_rfu\*fdom_qsu + turb\*fdom_qsu + temp + sensor_rfu\*temp + fdom_qsu\*temp + season + reserve
 
 
-# Loop through reserves and run models  
+**No FDOM**  
+
+If we drop FDOM and all its interactions, what do we get?  
+
+**NOTE** this still includes both reserve and season (as well as sensor readings from temp and turbidity) 
+
+
+**RFU only**  
+
+This does *not* include reserve or season. If the other models above are better, reserve or season could still be the reason (vs. turbidity/temp/FDOM corrections). It would mean **local factors still have to be accounted for and modelled to get the most out of a TAL sensor**.  
+
+
 
 Using leave-one-out cross-validation due to low number of samples for some reserves and potential to introduce new factor levels on validation set.  
 
@@ -140,31 +127,22 @@ mod_summs_out <- purrr::set_names(mod_summs_out, reserves)
 ```
 
 
-# FOR DISPLAY  
+## Summary Table  
 
-# Model selection table, by reserve  
-# Tank Data Only  
-
-may want to only use an indicator if interactions are present? e.g. show coefficients for RFU, FDOM, Turbidity, and only yes/no for others?  
 
 ```{r}
 mod_sel_df <- bind_rows(mod_sel_out, .id = "Reserve") %>% 
-  select(Reserve, model, AICc, R.2, pred_test_error, 
+  select(Reserve, model, AICc, R.2, prediction_error = pred_test_error,
          sensor_rfu, fdom_qsu, turb, 
-         season, temp, everything())
-knitr::kable(mod_sel_df,
-             digits = c(2, 2, 2, 3, 2, 4, 4, 
-                        4, 4, 4, 4, 4, 4, 4, 
-                        4, 4, 2, 2))
-
-write.csv(mod_sel_df, file = here::here("model_coeffs",
-                                        "IndRes_TankOnly.csv"), row.names = FALSE)
-```
+         season, temp, everything()) %>% 
+  mutate(across(c(AICc, prediction_error), round, 2),
+           across(c(R.2, sensor_rfu, X.Intercept.), round, 3),
+           across(c(fdom_qsu, turb, temp), round, 4),
+           across(c(fdom_qsu.sensor_rfu:fdom_qsu.sensor_rfu.turb), round, 4) )
 
 
-# Top model summary by reserve  
+knitr::kable(mod_sel_df)
 
-```{r}
-mod_summs_out
+write.csv(mod_sel_df, file = here::here("model_coeffs",                                     "IndRes_TankOnly.csv"), row.names = FALSE)
 ```
 

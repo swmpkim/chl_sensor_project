@@ -17,6 +17,7 @@ knitr::opts_chunk$set(echo = TRUE,
 
 ```{r}
 library(readxl)
+library(readr)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -24,6 +25,7 @@ library(patchwork)
 library(lmerTest)
 library(MuMIn)
 library(boot)
+library(tibble)
 
 # cost function for sMdAPE (symmetric median absolute percent error)  
 # works on square-root transformed response variable  
@@ -65,7 +67,7 @@ Fitting a linear model with all possible predictors, then evaluating residuals a
 
 Initial data and model exploration (not shown in this document; see instead the older `01_first_models_and_transformations` files) suggested that distinguishing between ISCO and tank samples at a site did not improve the model (no better AIC than lumping). However, due to huge anecdotal differences at two reserves (GTM and LKS) and the potential for differences at other reserves, models will be run both ways: with all data (Tank + ISCO), and with tank-only data.    
 
-# Models: All Reserves Combined; Tank + ISCO  
+# Models + Graphics: All Reserves Combined; Tank + ISCO  
 
 
 ```{r, child = '09b_minimal_combinedReserves_TankandISCO2.Rmd'}
@@ -74,9 +76,30 @@ Initial data and model exploration (not shown in this document; see instead the 
 ```
 
 
-# Models: All Reserves Combined; Tank Only  
+# Models + Graphics: All Reserves Combined; Tank Only  
 
 ```{r, child = '09b_minimal_combinedReserves_TankOnly.Rmd'}
+
+```
+
+
+# Models: Individual Reserves; Tank + ISCO  
+
+```{r, child = '10_minimal_indRes_TankAndISCO.Rmd'}
+
+```
+
+# Models: Individual Reserves; Tank Only  
+
+```{r, child = '10_minimal_indRes_TankOnly.Rmd'}
+
+```
+
+# Graphic: R^2 and prediction error for all models  
+
+Reserve code 'ALL' represents the combined-reserve models.  
+
+```{r, child = '11_summary_diagnostic_graphic.Rmd'}
 
 ```
 
