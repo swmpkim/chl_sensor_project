@@ -6,7 +6,12 @@ output:
 ```{r}
 load(here::here("data", "subset_no_NA.RData"))
 table(dat$method)
+dat_isco <- filter(dat, method == "isco")
 dat <- filter(dat, method == "tank")
+
+# subset isco data to only reserves that also have tank data
+dat_isco <- dat_isco %>% 
+  filter(reserve %in% unique(dat$reserve))
 
 # original plot settings, for later
 op <- par()
@@ -49,9 +54,17 @@ This does *not* include reserve or season. If the other models above are better,
 
 Using leave-one-out cross-validation due to low number of samples for some reserves and potential to introduce new factor levels on validation set.  
 
+
+**Testing predictions on ISCO data**  
+
+Five reserves collected both tank and ISCO data: GND, GTM, LKS, PDB, GRB. (NIW is not included here because their ISCO data was collected at a different station than their tank data.)  
+
+For these reserves, we will see how well predictions from the three core models built from tank data compare to the observed ISCO data.  
+
 ```{r}
 mod_sel_out <- list()
 mod_summs_out <- list()
+isco_preds_out <- list()
 reserves <- unique(dat$reserve)
 set.seed(1216)
 
@@ -117,6 +130,21 @@ for(i in seq_along(reserves)){
     # summary for top model
     mod_summs_out[[i]] <- summary(ols.1)
     
+    
+    # ISCO predictions 
+    if(reserves[i] %in% unique(dat_isco$reserve)){
+      isco <- dat_isco %>% 
+        filter(reserve == reserves[i],
+               season %in% unique(res$season)) %>% 
+        mutate(preds_best_AIC = (predict(ols.1, newdata = .))^2,
+               preds_no_fdom_ols = (predict(no_fdom_ols, newdata = .))^2,
+               preds_rfu_only = (predict(rfu_only, newdata = .))^2)
+      
+      isco_preds_out[[i]] <- isco
+      
+      
+    }
+    
       
 }
 ```
@@ -124,8 +152,14 @@ for(i in seq_along(reserves)){
 ```{r}
 mod_sel_out <- purrr::set_names(mod_sel_out, reserves)
 mod_summs_out <- purrr::set_names(mod_summs_out, reserves)
+isco_preds <- bind_rows(isco_preds_out)
+isco_preds_long <- isco_preds %>% 
+  select(reserve, month, season, method, extracted, starts_with("preds")) %>% 
+  pivot_longer(cols = starts_with("preds"),
+               names_to = "model",
+               names_prefix = "preds_",
+               values_to = "predicted")
 ```
-
 
 ## Summary Table  
 
@@ -144,5 +178,37 @@ mod_sel_df <- bind_rows(mod_sel_out, .id = "Reserve") %>%
 knitr::kable(mod_sel_df)
 
 write.csv(mod_sel_df, file = here::here("model_coeffs",                                     "IndRes_TankOnly.csv"), row.names = FALSE)
+```
+
+## Graphs of ISCO predictions  
+
+```{r}
+ggplot(isco_preds_long) +
+  geom_abline(slope = 1, intercept = 0, color = "gray40") +
+  geom_point(aes(x = predicted, y = extracted, color = reserve, shape = model),
+             alpha = 0.6, size = 2) +
+  facet_wrap(~model) +
+  labs(title = "Observed ISCO by predictions from tank models",
+       subtitle = "Gray line on each panel is 1:1 line")
+```
+
+```{r}
+ggplot(isco_preds_long) +
+  geom_abline(slope = 1, intercept = 0, color = "gray40") +
+  geom_point(aes(x = predicted, y = extracted, color = model, shape = model),
+             alpha = 0.6, size = 2) +
+  facet_wrap(~reserve) +
+  labs(title = "Observed ISCO by predictions from tank models",
+       subtitle = "Gray line on each panel is 1:1 line")
+```
+
+```{r}
+ggplot(isco_preds_long) +
+  geom_abline(slope = 1, intercept = 0, color = "gray40") +
+  geom_point(aes(x = predicted, y = extracted, color = model, shape = model),
+             alpha = 0.6, size = 2) +
+  facet_wrap(~reserve, scales = "free") +
+  labs(title = "Observed ISCO by predictions from tank models",
+       subtitle = "Free axes; Gray line on each panel is 1:1 line")
 ```
 
