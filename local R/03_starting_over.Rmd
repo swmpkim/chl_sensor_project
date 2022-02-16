@@ -12,7 +12,30 @@ output:
 
 re-run 12/16/2021 to incorporate new data file sent on 12/15 (GRB ISCO data had been left out of original file)  
 
+**update 2/16/2022 to incorporate temperature-corrected RFU** (based on Hannah Ramage's calculations) into the modeling data frame. The "global" rho is an average of the rho values in all of the temperature-interference trials. The global rho is then inserted into the Watras et al. 2017 Eq. 1:  
+
+Temp-corrected-RFU = original-RFU / (1 + global_rho*(temp_reading - 20))  
+
+
+I'm hardcoding in the rhos here because it's easier than dealing with another file, but am setting up the code to be rerun easily with a different batch of rhos (however they're read in).  
+
 ```{r}
+rhos <- c(-0.018449239,
+-0.017224308,
+-0.006810888,
+-0.017013983,
+-0.016389726,
+-0.016809971,
+-0.010759556,
+-0.011669893,
+-0.006993083,
+-0.010889714,
+-0.0081596,
+-0.002334279
+)
+
+global_rho <- mean(rhos)
+
 dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
                  sheet = "qaqc") %>% 
     mutate(extracted = chla_ugl,
@@ -46,13 +69,27 @@ dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
     drop_na() %>% 
     mutate(across(c(reserve, month, season),
                   as.factor),
-           season = forcats::fct_relevel(season, c("Winter", "Spring", "Summer", "Fall")))
+           season = forcats::fct_relevel(season, c("Winter", "Spring", "Summer", "Fall")),
+           rfu_temp_corrected = sensor_rfu / (1 + global_rho*(temp-20)))
 
 # save(dat, file = here::here("data", "subset_no_NA.RData"))
+# uncommented and ran the above, 2/16/22
 
 # read back in later with:
 # load(here::here("data", "subset_no_NA.RData"))
 ```
+
+Quick gut-check on temp-corrected RFU:  
+
+```{r}
+ggplot(dat, aes(x = sensor_rfu, y = rfu_temp_corrected)) +
+    geom_point(size = 2, alpha = 0.4, aes(color = reserve)) +
+    geom_abline(slope = 1, intercept = 0, color = "gray40") +
+    labs(x = "Sensor RFU",
+         y = "Temperature-corrected RFU")
+```
+
+Points are generally close to the 1:1 line.  
 
 ## Summary  
 
