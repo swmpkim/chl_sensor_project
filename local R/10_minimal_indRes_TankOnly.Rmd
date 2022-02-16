@@ -89,16 +89,16 @@ for(i in seq_along(reserves)){
         no_fdom_ols <- glm(response ~ sensor_rfu + turb +  sensor_rfu*turb + temp + sensor_rfu*temp + season, data = res)
         no_fdom_lm <- lm(response ~ sensor_rfu + turb +  sensor_rfu*turb + temp + sensor_rfu*temp + season, data = res)
         # only rfu + season
-        rfu_season <- glm(response ~ sensor_rfu + season, data = dat)
-        rfu_season_lm <- lm(response ~ sensor_rfu + season, data = dat)
+        rfu_season <- glm(response ~ sensor_rfu + season, data = res)
+        rfu_season_lm <- lm(response ~ sensor_rfu + season, data = res)
         # cross-validate
         rfu_season.cv <- cv.glm(res, rfu_season, cost)
         rfu_season.df <- data.frame(model.sel(rfu_season))
         rfu_season.df$pred_test_error <- round(rfu_season.cv$delta[1], 2)
         rfu_season.df$R.2 <- round(summary(rfu_season_lm)$r.squared, 4)
         # temp-corrected rfu + season
-        tc_rfu_season <- glm(response ~ rfu_temp_corrected + season, data = dat)
-        tc_rfu_season_lm <- lm(response ~ rfu_temp_corrected + season, data = dat)
+        tc_rfu_season <- glm(response ~ rfu_temp_corrected + season, data = res)
+        tc_rfu_season_lm <- lm(response ~ rfu_temp_corrected + season, data = res)
         # cross-validate
         tc_rfu_season.cv <- cv.glm(res, tc_rfu_season, cost)
         tc_rfu_season.df <- data.frame(model.sel(tc_rfu_season))
@@ -209,10 +209,10 @@ isco_preds_long <- isco_preds %>%
 ```{r}
 mod_sel_df <- bind_rows(mod_sel_out, .id = "Reserve") %>% 
   select(Reserve, model, AICc, R.2, prediction_error = pred_test_error,
-         sensor_rfu, fdom_qsu, turb, 
+         sensor_rfu, rfu_temp_corrected, fdom_qsu, turb, 
          season, temp, everything()) %>% 
   mutate(across(c(AICc, prediction_error), round, 2),
-           across(c(R.2, sensor_rfu, X.Intercept.), round, 3),
+           across(c(R.2, sensor_rfu, rfu_temp_corrected, X.Intercept.), round, 3),
            across(c(fdom_qsu, turb, temp), round, 4),
            across(c(fdom_qsu.sensor_rfu:fdom_qsu.sensor_rfu.turb), round, 4) )
 
@@ -221,6 +221,63 @@ knitr::kable(mod_sel_df)
 
 write.csv(mod_sel_df, file = here::here("model_coeffs",                                     "IndRes_TankOnly.csv"), row.names = FALSE)
 ```
+
+# Graph of model diagnostics by reserve  
+
+```{r}
+diags <- mod_sel_df %>% 
+  select(Reserve, model, AICc, R.2, prediction_error) %>% 
+  pivot_longer(-c(Reserve, model), names_to = "diagnostic", values_to = "value") %>% 
+  mutate(diagnostic = case_when(diagnostic == "R.2" ~ "R^2",
+                                diagnostic == "prediction_error" ~ "Prediction Error",
+                                TRUE ~ diagnostic),
+         model_type = case_when(stringr::str_starts(model, "rfu") ~ "RFU",
+                                stringr::str_starts(model, "tc_rfu") ~ "TC-RFU",
+                                TRUE ~ "multi-vars"))
+```
+
+```{r, fig.height = 8, fig.width = 6}
+my_shapes <- c(16, 17, 15, 7, 8, 9)
+
+# colors below are from khroma::muted and are colorblind-friendly
+# though that's not really necessary here because we also have shapes and names
+
+ggplot(diags, aes(x = value, y = model)) +
+  geom_point(size = 3, aes(color = model_type, shape = model)) +
+  facet_grid(Reserve~diagnostic, scales = "free_x") +
+  scale_shape_manual(values = rep(my_shapes, 2)) +
+  scale_color_manual(values = c("#332288", "#882255", "#44AA99")) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  ggtitle("Reserve models; Tank data only")
+```
+
+
+Get rid of GND and PDB due to that massive overfitting that messes up the AICc scale, and also HEE_w2 because it was such a small sample size.    
+
+```{r, fig.height = 7, fig.width = 6}
+diags %>% 
+  filter(!(Reserve %in% c("GND", "PDB", "HEE_w2"))) %>% 
+ggplot(aes(x = value, y = model)) +
+  geom_point(size = 3, aes(color = model_type, shape = model)) +
+  facet_grid(Reserve~diagnostic, scales = "free_x") +
+  scale_shape_manual(values = rep(my_shapes, 2)) +
+  scale_color_manual(values = c("#332288", "#882255", "#44AA99")) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  ggtitle("Reserve models; Tank data only")
+```
+
+
+
+
+```{r}
+ggplot(mod_sel_df, aes(x = prediction_error, y = model,
+                       color = model, shape = model)) +
+  geom_point(size = 3) +
+  facet_wrap(~Reserve)
+```
+
 
 ## Graphs of ISCO predictions  
 

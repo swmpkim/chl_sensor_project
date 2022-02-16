@@ -21,11 +21,17 @@ dat$response <- sqrt(dat$extracted)
 ```
 
 
+
 ## Modeling: All Reserves, Tank + ISCO  
 
 At one point, I coded LMMs. But they are very data-hungry and based on `05_model_selection_combined_reserves`, didn't seem to make very different predictions. In theory they are better for various reasons but we are proceeding with only Ordinary Least Squares (OLS) models here.  
 
 Each of the models described below are fitted and evaluated using symmetric Median Absolute Percent Error.  
+
+**n** (number of points in the dataset): `r nrow(dat)`  
+
+from `r length(unique(dat$reserve))` reserves  
+
 
 **Full Model**  
 
