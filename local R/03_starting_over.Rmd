@@ -8,6 +8,8 @@ output:
 +  Data will be subsetted to a data frame that does not contain ANY NAs, because model selection is based on models containing exactly the same input data.  
 +  That subset will be saved as an `.Rdata` file for easier import and reuse downstream.  
 +  Some summary statistics for the data that will be used will be generated.  
+
+
 ## Data import and export  
 
 re-run 12/16/2021 to incorporate new data file sent on 12/15 (GRB ISCO data had been left out of original file)  
@@ -78,6 +80,8 @@ dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
 # read back in later with:
 # load(here::here("data", "subset_no_NA.RData"))
 ```
+
+Global rho: `r round(global_rho, 5)`
 
 Quick gut-check on temp-corrected RFU:  
 

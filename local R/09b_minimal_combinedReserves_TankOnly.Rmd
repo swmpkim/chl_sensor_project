@@ -276,7 +276,10 @@ diags <- coeffs %>%
   pivot_longer(-model, names_to = "diagnostic", values_to = "value") %>% 
   mutate(diagnostic = case_when(diagnostic == "R.2" ~ "R^2",
                                 diagnostic == "prediction_error" ~ "Prediction Error",
-                                TRUE ~ diagnostic))
+                                TRUE ~ diagnostic),
+         model_type = case_when(stringr::str_starts(model, "rfu") ~ "RFU",
+                                stringr::str_starts(model, "tc_rfu") ~ "TC-RFU",
+                                TRUE ~ "multi-vars"))
 ```
 
 ```{r}
@@ -285,10 +288,14 @@ diags <- coeffs %>%
 
 my_shapes <- c(16, 17, 15, 7, 8, 9)
 
+# colors below are from khroma::muted and are colorblind-friendly
+# though that's not really necessary here because we also have shapes and names
+
 ggplot(diags, aes(x = value, y = model)) +
-  geom_point(size = 3, aes(color = model, shape = model)) +
+  geom_point(size = 3, aes(color = model_type, shape = model)) +
   facet_wrap(~diagnostic, nrow = 1, scales = "free_x") +
   scale_shape_manual(values = rep(my_shapes, 2)) +
+  scale_color_manual(values = c("#332288", "#882255", "#44AA99")) +
   theme_bw() +
   theme(legend.position = "none") +
   ggtitle("National model; Tank data only")
@@ -297,4 +304,4 @@ ggsave(here::here("model_coeffs", "diagnostics_multimodels_national_tank.png"),
        width = 8, height = 4, units = "in")
 ```
 
-You need season, and you need reserve. Tweaking beyond that with temperature-correcting RFU, including turbidity and/or FDOM, etc., could improve things. But including 'Reserve' has the most impact on the model, repeatedly. So if you want a really good model, you have to put in some work to get the samples at your reserve.    
+You need reserve. Season helps, but primarily, you need reserve. Tweaking beyond that with temperature-correcting RFU, including turbidity and/or FDOM, etc., could improve things. But including 'Reserve' has the most impact on the model, repeatedly. So if you want a really good model, you have to put in some work to get the samples at your reserve.    
