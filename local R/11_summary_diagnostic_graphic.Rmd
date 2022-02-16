@@ -57,7 +57,7 @@ rsq <- ggplot(dat_all,
   theme_bw() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         strip.text = element_blank()) +
-  scale_color_brewer(palette = "Set1") +
+  scale_shape_manual(values = 1:15) +
   labs(x = NULL, y = expression("R"^"2"))
 
 err <- ggplot(dat_all,
@@ -71,7 +71,7 @@ err <- ggplot(dat_all,
   theme_bw() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         strip.text = element_blank()) +
-  scale_color_brewer(palette = "Set1") +
+  scale_shape_manual(values = 1:15) +
   labs(x = NULL, y = "Median Absolute \nPrediction Error")
 ```
 
@@ -92,7 +92,7 @@ col2 <- ggplot() + annotate(geom = 'text', x=1, y=1, label="Tank Only") + theme_
 
 
 # from khroma::vibrant
-colors <- scale_color_manual(values = c("#0077BB", "#CC3311", "#009988"))
+colors <- scale_color_manual(values = rep(c("#0077BB", "#CC3311", "#009988"), 4))
 
 (col1 + col2) / (rsq + colors) / (err + colors) +
   plot_layout(guides = 'collect',
@@ -100,7 +100,7 @@ colors <- scale_color_manual(values = c("#0077BB", "#CC3311", "#009988"))
 ```
 
 ```{r}
-ggsave(here::here("model_coeffs", "diagnostic_plot_updated.png"),
+ggsave(here::here("model_coeffs", "diagnostic_plot_updated_lotsamodels.png"),
        width = 8.5, height = 6.5, units = "in")
 ```
 
