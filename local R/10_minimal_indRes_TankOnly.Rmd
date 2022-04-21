@@ -268,7 +268,25 @@ ggplot(aes(x = value, y = model)) +
   ggtitle("Reserve models; Tank data only")
 ```
 
+Same thing, but also get rid of temp-corrected RFU because it adds clutter.  
 
+```{r, fig.height = 7, fig.width = 6}
+diags %>% 
+  filter(!(Reserve %in% c("GND", "PDB", "HEE_w2")),
+         !(model %in% c("tc_rfu_season", "tc_rfu_only"))) %>% 
+ggplot(aes(x = value, y = model)) +
+  geom_point(size = 3, aes(color = model_type, shape = model)) +
+  facet_grid(Reserve~diagnostic, scales = "free_x") +
+  scale_shape_manual(values = rep(my_shapes, 2)) +
+  scale_color_manual(values = c("#332288", "#882255", "#44AA99")) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  ggtitle("Reserve models; Tank data only")
+
+ggsave(here::here("model_figures", 
+                  "IndRes_TankOnly_4Mods_diagnostics.png"),
+       width = 6, height = 7, units = "in")
+```
 
 
 ```{r}

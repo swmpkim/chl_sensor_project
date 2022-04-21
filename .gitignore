@@ -17,4 +17,7 @@ data/chla_GND_2.0.xlsx
 # folders
 Analysis Plan/
 Literature-20201215T165239Z-001/
-Proposal/
+Proposal/  
+model_coeffs/  
+model_figures/  
+model_predictions/  
