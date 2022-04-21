@@ -74,7 +74,7 @@ dat <- read_xlsx(here::here("data", "2021_chla-catalyst_data_all.xlsx"),
            season = forcats::fct_relevel(season, c("Winter", "Spring", "Summer", "Fall")),
            rfu_temp_corrected = sensor_rfu / (1 + global_rho*(temp-20)))
 
-# save(dat, file = here::here("data", "subset_no_NA.RData"))
+save(dat, file = here::here("data", "subset_no_NA.RData"))
 # uncommented and ran the above, 2/16/22
 
 # read back in later with:
