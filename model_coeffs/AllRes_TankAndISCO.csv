@@ -1,0 +1,4 @@
+"reserve","model","AICc","R.2","prediction_error","sensor_rfu","fdom_qsu","turb","temp","season","X.Intercept.","fdom_qsu.sensor_rfu","fdom_qsu.temp","fdom_qsu.turb","sensor_rfu.temp","sensor_rfu.turb","fdom_qsu.sensor_rfu.turb","df","logLik"
+"+","best_AIC",3047.55,0.657,35.96,0.557,7e-04,0.0253,0.1256,"+",0.162,NA,-4e-04,NA,-0.0118,-0.0038,NA,25,-1498.15510447338
+"+","no_fdom_ols",3116.05,0.632,38.1,0.609,NA,0.025,0.0919,"+",0.565,NA,NA,NA,-0.0144,-0.0039,NA,23,-1534.49932356878
+NA,"rfu_only",3769.49,0.299,56.21,0.375,NA,NA,NA,NA,2.013,NA,NA,NA,NA,NA,NA,3,-1881.73198152663
