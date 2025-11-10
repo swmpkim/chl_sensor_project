@@ -162,7 +162,7 @@ subdf <- subdf %>%
                            TRUE ~ model)) %>% 
   select(model, AICc, R.2, pred_test_error, 
          sensor_rfu, rfu_temp_corrected, everything()) %>% 
-  select(-c(delta, weight, family))
+  select(-c(delta, weight))
 ```
 
 

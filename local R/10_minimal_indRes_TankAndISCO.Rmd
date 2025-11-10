@@ -109,7 +109,7 @@ for(i in seq_along(reserves)){
       mutate(model = case_when(model == "...1" ~ "best_AIC",
                                TRUE ~ model)) %>% 
       select(model, AICc, R.2, pred_test_error, everything()) %>% 
-      select(-c(delta, weight, family))
+      select(-c(delta, weight))
     
     # attach prediction error to it
     mod_sel_out[[i]] <- subdf
