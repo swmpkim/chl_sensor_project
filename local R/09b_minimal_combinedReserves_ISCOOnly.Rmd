@@ -1,0 +1,307 @@
+---
+output: 
+    html_document
+---
+
+
+```{r}
+load(here::here("data", "subset_no_NA.RData"))
+dat <- filter(dat, method == "isco")
+
+# original plot settings, for later
+op <- par()
+
+# options, for MuMIn operations
+# will prevent fitting sub-models to different datasets (from help file)
+options(na.action = "na.fail")
+```
+
+```{r}
+# create "response" column  
+dat$response <- sqrt(dat$extracted)
+```
+
+
+## Modeling: All Reserves, ISCO Only  
+
+At one point, I coded LMMs. But they are very data-hungry and based on `05_model_selection_combined_reserves`, didn't seem to make very different predictions. In theory they are better for various reasons but we are proceeding with only Ordinary Least Squares (OLS) models here.  
+
+Each of the models described below are fitted and evaluated using symmetric Median Absolute Percent Error.  
+
+**n** (number of points in the dataset): `r nrow(dat)`  
+
+from `r length(unique(dat$reserve))` reserves  
+
+
+**Full Model**  
+
+Includes all interactions between sensor_rfu, turbidity, and FDOM. Additionally, temp\*rfu and temp\*fdom. Hoping we can actually drop some of these.  
+
+Reserve included as fixed effect.  
+
+response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu\*turb\*fdom_qsu + sensor_rfu\*turb + sensor_rfu\*fdom_qsu + turb\*fdom_qsu + temp + sensor_rfu\*temp + fdom_qsu\*temp + season + reserve
+
+
+**No FDOM**  
+
+If we drop FDOM and all its interactions, what do we get?  
+
+**NOTE** this still includes both reserve and season (as well as sensor readings from temp and turbidity) 
+
+
+**RFU only**  
+
+This does *not* include reserve or season. If the other models above are better, reserve or season could still be the reason (vs. turbidity/temp/FDOM corrections). It would mean **local factors still have to be accounted for and modeled to get the most out of a TAL sensor**.  
+
+
+**RFU + season**  
+
+
+**Temp-Corrected RFU + season**  
+
+Temp-corrected RFU is denoted as `tc_rfu` in the model names and objects. The correction was based on a global rho value which was the average of all individual rho values, as calculated by Hannah Ramage, from the temperature interference trials. This global rho value was then inserted into the equation from Watras et al. 2017 as follows:
+
+Temp-corrected-RFU = original-RFU / (1 + global_rho*(temp_reading - 20)) 
+
+
+***  
+```{r}
+# Changed coding to be more similar to the individual reserve files; re-ran using all NIW data lumped together (and all HEE data lumped together) - got same coefficients as before. Individual reserve files use leave-one-out cross-validation, but here I'm using 10-fold because otherwise it's a lot. 
+
+# 2/16/22 adding some new models of interest, and really wishing I'd somehow made everything below into a function. Still not sure how, but it would have helped a lot.
+
+set.seed(1216)
+full_ols <- glm(response ~ sensor_rfu + turb + fdom_qsu + sensor_rfu*turb*fdom_qsu + sensor_rfu*turb + sensor_rfu*fdom_qsu + turb*fdom_qsu + temp + sensor_rfu*temp + fdom_qsu*temp + season + reserve, data = dat)
+
+no_fdom_ols <- glm(response ~ sensor_rfu + turb +  sensor_rfu*turb + temp + sensor_rfu*temp + season + reserve, data = dat)
+
+no_fdom_lm <- lm(response ~ sensor_rfu + turb +  sensor_rfu*turb + temp + sensor_rfu*temp + season + reserve, data = dat)
+
+rfu_only <- glm(response ~ sensor_rfu, data = dat)
+rfu_only_lm <- lm(response ~ sensor_rfu, data = dat)
+
+rfu_season <- glm(response ~ sensor_rfu + season, data = dat)
+rfu_season_lm <- lm(response ~ sensor_rfu + season, data = dat)
+
+rfu_reserve <- glm(response ~ sensor_rfu + reserve, data = dat)
+rfu_reserve_lm <- lm(response ~ sensor_rfu + reserve, data = dat)
+
+rfu_season_res <- glm(response ~ sensor_rfu + season + reserve, data = dat)
+rfu_season_res_lm <- lm(response ~ sensor_rfu + season + reserve, data = dat)
+
+tc_rfu_season <- glm(response ~ rfu_temp_corrected + season, data = dat)
+tc_rfu_season_lm <- lm(response ~ rfu_temp_corrected + season, data = dat)
+
+tc_rfu_reserve <- glm(response ~ rfu_temp_corrected + reserve, data = dat)
+tc_rfu_reserve_lm <- lm(response ~ rfu_temp_corrected + reserve, data = dat)
+
+tc_rfu_season_res <- glm(response ~ rfu_temp_corrected + season + reserve, data = dat)
+tc_rfu_season_res_lm <- lm(response ~ rfu_temp_corrected + season + reserve, data = dat)
+
+sel <- dredge(full_ols, 
+              fixed = "sensor_rfu",
+              extra = c("R^2", "AdjR^2" = function(x) summary(x)$adj.r.squared))
+
+# perform 10-fold cross-validation on top model to find median prediction error
+# cost function is sMdAPE; defined in parent Rmd
+ols.1 <- get.models(sel, 1)[[1]]
+ols.cv <- cv.glm(dat, ols.1, cost, K = 10)
+
+no_fdom.cv <- cv.glm(dat, no_fdom_ols, cost, K = 10)
+no_fdom.df <- data.frame(model.sel(no_fdom_ols))
+no_fdom.df$pred_test_error <- round(no_fdom.cv$delta[1], 2)
+
+rfu_only.cv <- cv.glm(dat, rfu_only, cost, K = 10)
+rfu_only.df <- data.frame(model.sel(rfu_only))
+rfu_only.df$pred_test_error <- round(rfu_only.cv$delta[1], 2)
+
+rfu_season.cv <- cv.glm(dat, rfu_season, cost, K = 10)
+rfu_season.df <- data.frame(model.sel(rfu_season))
+rfu_season.df$pred_test_error <- round(rfu_season.cv$delta[1], 2)
+
+rfu_reserve.cv <- cv.glm(dat, rfu_reserve, cost, K = 10)
+rfu_reserve.df <- data.frame(model.sel(rfu_reserve))
+rfu_reserve.df$pred_test_error <- round(rfu_reserve.cv$delta[1], 2)
+
+rfu_season_res.cv <- cv.glm(dat, rfu_season_res, cost, K = 10)
+rfu_season_res.df <- data.frame(model.sel(rfu_season_res))
+rfu_season_res.df$pred_test_error <- round(rfu_season_res.cv$delta[1], 2)
+
+tc_rfu_season.cv <- cv.glm(dat, tc_rfu_season, cost, K = 10)
+tc_rfu_season.df <- data.frame(model.sel(tc_rfu_season))
+tc_rfu_season.df$pred_test_error <- round(tc_rfu_season.cv$delta[1], 2)
+
+tc_rfu_reserve.cv <- cv.glm(dat, tc_rfu_reserve, cost, K = 10)
+tc_rfu_reserve.df <- data.frame(model.sel(tc_rfu_reserve))
+tc_rfu_reserve.df$pred_test_error <- round(tc_rfu_reserve.cv$delta[1], 2)
+
+tc_rfu_season_res.cv <- cv.glm(dat, tc_rfu_season_res, cost, K = 10)
+tc_rfu_season_res.df <- data.frame(model.sel(tc_rfu_season_res))
+tc_rfu_season_res.df$pred_test_error <- round(tc_rfu_season_res.cv$delta[1], 2)
+
+
+# pull out R^2s from lms (glms were run for cross-validation but really they're just regular linear models)
+no_fdom.df$R.2 <- round(summary(no_fdom_lm)$r.squared, 4)
+rfu_only.df$R.2 <- round(summary(rfu_only_lm)$r.squared, 4)
+rfu_season.df$R.2 <- round(summary(rfu_season_lm)$r.squared, 4)
+rfu_reserve.df$R.2 <- round(summary(rfu_reserve_lm)$r.squared, 4)
+rfu_season_res.df$R.2 <- round(summary(rfu_season_res_lm)$r.squared, 4)
+tc_rfu_season.df$R.2 <- round(summary(tc_rfu_season_lm)$r.squared, 4)
+tc_rfu_reserve.df$R.2 <- round(summary(tc_rfu_reserve_lm)$r.squared, 4)
+tc_rfu_season_res.df$R.2 <- round(summary(tc_rfu_season_res_lm)$r.squared, 4)
+
+# only top one
+subdf <- data.frame(sel[1])
+subdf$pred_test_error <- round(ols.cv$delta[1], 2)
+subdf <- subdf %>% 
+  bind_rows(no_fdom.df, rfu_only.df, 
+            rfu_season.df, rfu_reserve.df, rfu_season_res.df,
+            tc_rfu_season.df, tc_rfu_reserve.df, tc_rfu_season_res.df) %>% 
+  tibble::rownames_to_column(var = "model") %>% 
+  mutate(model = case_when(model == "...1" ~ "best_AIC",
+                           TRUE ~ model)) %>% 
+  select(model, AICc, R.2, pred_test_error, 
+         sensor_rfu, rfu_temp_corrected, everything()) %>% 
+  select(-c(delta, weight))
+```
+
+
+
+***  
+
+
+## Summary Table for main models  
+
+```{r}
+coeffs <- subdf %>%  
+    select(reserve, model, AICc, R.2, prediction_error = pred_test_error,
+           sensor_rfu, rfu_temp_corrected, fdom_qsu, turb, temp, season,
+           everything()) %>% 
+    mutate(across(c(AICc, prediction_error), round, 2),
+           across(c(R.2, sensor_rfu, rfu_temp_corrected, X.Intercept.), round, 3),
+           across(c(fdom_qsu, turb, temp), round, 4),
+           across(c(fdom_qsu.sensor_rfu:fdom_qsu.sensor_rfu.turb), round, 4) )
+
+knitr::kable(coeffs)
+
+# save out to CSV
+write.csv(coeffs, file = here::here("model_coeffs",                                     "AllRes_ISCOOnly.csv"), row.names = FALSE)
+```
+
+
+## Graphics  
+
+```{r}
+dat2 <- dat %>% 
+    mutate(preds_ols = (predict(ols.1, newdata = dat))^2,
+           preds_nofdom_ols = (predict(no_fdom_ols, newdata = dat))^2,
+           preds_rfu = (predict(rfu_only, newdata = dat))^2,
+           preds_rfu_season = (predict(rfu_season, newdata = dat))^2,
+           preds_rfu_reserve = (predict(rfu_reserve, newdata = dat))^2,
+           preds_rfu_season_res = (predict(rfu_season_res, newdata = dat))^2,
+           preds_tc_rfu_season = (predict(tc_rfu_season, newdata = dat))^2,
+           preds_tc_rfu_reserve = (predict(tc_rfu_reserve, newdata = dat))^2,
+           preds_tc_rfu_season_res = (predict(tc_rfu_season_res, newdata = dat))^2)%>% 
+    arrange(extracted) %>% 
+    mutate(rownum = row_number())
+
+# save out to csv
+write.csv(dat2, file = here::here("model_predictions", "AllRes_ISCOOnly_preds.csv"), row.names = FALSE)
+```
+
+```{r}
+dat2_long <- dat2 %>% 
+  select(reserve, month, season, method, extracted, starts_with("preds")) %>% 
+  pivot_longer(cols = starts_with("preds"),
+               names_to = "model",
+               names_prefix = "preds_",
+               values_to = "predicted")
+```
+
+
+```{r}
+ggplot(dat2, aes(x = rownum)) +
+  geom_point(aes(y = preds_ols, shape = "Big model", color = reserve), alpha = 0.5) +
+  geom_point(aes(y = preds_nofdom_ols, shape = "no FDOM", color = reserve), alpha = 0.5) +
+  geom_point(aes(y = preds_rfu, shape = "RFU only", color = reserve), alpha = 0.5) +
+  geom_point(aes(y = extracted, shape = "Extracted", color = reserve), size = 3, alpha = 0.6) +
+  labs(title = "Chl predictions, Field Measurements Only",
+       x = "row number in data (sorted from smallest to largest chl a",
+       y = "ug/L, extracted or predicted",
+       color = "Reserve",
+       shape = "Model")
+```
+
+```{r}
+ggplot(dat2_long) +
+  geom_abline(slope = 1, intercept = 0, color = "gray40") +
+  geom_point(aes(x = predicted, y = extracted, color = reserve, shape = model)) +
+  facet_wrap(~model) +
+  labs(title = "Observed by predicted; Field Only; combined-reserve model",
+       subtitle = "Gray line on each panel is 1:1 line")
+```
+
+```{r}
+ggplot(dat2_long) +
+  geom_abline(slope = 1, intercept = 0, color = "gray40") +
+  geom_point(aes(x = predicted, y = extracted, color = model, shape = model)) +
+  facet_grid(reserve ~ season) +
+  labs(title = "Observed by predicted; Field Only; combined-reserve model",
+       subtitle = "Gray line on each panel is 1:1 line")
+```
+
+```{r}
+ggplot(dat2_long) +
+  geom_abline(slope = 1, intercept = 0, color = "gray40") +
+  geom_point(aes(x = predicted, y = extracted, color = model, shape = model)) +
+  facet_wrap(~reserve) +
+  labs(title = "Observed by predicted; Field Only; combined-reserve model",
+       subtitle = "Gray line on each panel is 1:1 line")
+```
+
+
+```{r}
+ggplot(dat2_long) +
+  geom_abline(slope = 1, intercept = 0, color = "gray40") +
+  geom_point(aes(x = predicted, y = extracted, color = model, shape = model)) +
+  facet_wrap(~reserve, scales = "free") +
+  labs(title = "Observed by predicted; Field Only; combined-reserve model",
+       subtitle = "Free axes; Gray line on each panel is 1:1 line")
+```
+
+
+```{r}
+diags <- coeffs %>% 
+  select(model, AICc, R.2, prediction_error) %>% 
+  pivot_longer(-model, names_to = "diagnostic", values_to = "value") %>% 
+  mutate(diagnostic = case_when(diagnostic == "R.2" ~ "R^2",
+                                diagnostic == "prediction_error" ~ "Prediction Error",
+                                TRUE ~ diagnostic),
+         model_type = case_when(stringr::str_starts(model, "rfu") ~ "RFU",
+                                stringr::str_starts(model, "tc_rfu") ~ "TC-RFU",
+                                TRUE ~ "multi-vars"))
+```
+
+```{r}
+# default will use max of 6 shapes. they are:
+# 16, 17, 15, 3, 7, 8
+
+my_shapes <- c(16, 17, 15, 7, 8, 9)
+
+# colors below are from khroma::muted and are colorblind-friendly
+# though that's not really necessary here because we also have shapes and names
+
+ggplot(diags, aes(x = value, y = model)) +
+  geom_point(size = 3, aes(color = model_type, shape = model)) +
+  facet_wrap(~diagnostic, nrow = 1, scales = "free_x") +
+  scale_shape_manual(values = rep(my_shapes, 2)) +
+  scale_color_manual(values = c("#332288", "#882255", "#44AA99")) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  ggtitle("National model; Field data only")
+
+ggsave(here::here("model_coeffs", "diagnostics_multimodels_national_field.png"),
+       width = 8, height = 4, units = "in")
+```
+
+You need reserve. Season helps, but primarily, you need reserve. Tweaking beyond that with temperature-correcting RFU, including turbidity and/or FDOM, etc., could improve things. But including 'Reserve' has the most impact on the model, repeatedly. So if you want a really good model, you have to put in some work to get the samples at your reserve.    

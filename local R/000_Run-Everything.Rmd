@@ -83,6 +83,12 @@ Initial data and model exploration (not shown in this document; see instead the 
 
 ```
 
+# Models + Graphics: All Reserves Combined; ISCO Only  
+
+```{r, child = '09b_minimal_combinedReserves_ISCOOnly.Rmd'}
+
+```
+
 
 # Models: Individual Reserves; Tank + ISCO  
 
@@ -95,6 +101,13 @@ Initial data and model exploration (not shown in this document; see instead the 
 ```{r, child = '10_minimal_indRes_TankOnly.Rmd'}
 
 ```
+
+# Models: Individual Reserves; ISCO Only  
+
+```{r, child = '10_minimal_indRes_ISCOOnly.Rmd'}
+
+```
+
 
 # Graphic: R^2 and prediction error for all models  
 
