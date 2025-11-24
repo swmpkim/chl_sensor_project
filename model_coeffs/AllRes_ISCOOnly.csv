@@ -1,0 +1,10 @@
+"reserve","model","AICc","R.2","prediction_error","sensor_rfu","rfu_temp_corrected","fdom_qsu","turb","temp","season","X.Intercept.","fdom_qsu.sensor_rfu","fdom_qsu.temp","fdom_qsu.turb","sensor_rfu.temp","sensor_rfu.turb","fdom_qsu.sensor_rfu.turb","df","logLik"
+"+","best_AIC",2156.09,0.679,34.94,0.41,NA,-0.001,0.0077,0.1802,"+",-0.024,-0.0013,-3e-04,2e-04,-0.0092,NA,NA,21,-1056.42126251771
+"+","no_fdom_ols",2218.14,0.649,40.99,0.368,NA,NA,0.0165,0.1504,"+",0.414,NA,NA,NA,-0.0114,3e-04,NA,18,-1090.61034836461
+NA,"rfu_only",2760.82,0.257,58.22,0.363,NA,NA,NA,NA,NA,1.96,NA,NA,NA,NA,NA,NA,3,-1377.39314660776
+NA,"rfu_season",2658.98,0.355,57.2,0.314,NA,NA,NA,NA,"+",1.102,NA,NA,NA,NA,NA,NA,6,-1323.43325702538
+"+","rfu_reserve",2412.43,0.539,41.87,0.306,NA,NA,NA,NA,NA,2.423,NA,NA,NA,NA,NA,NA,11,-1195.03943745971
+"+","rfu_season_res",2321.42,0.594,45.35,0.226,NA,NA,NA,NA,"+",1.845,NA,NA,NA,NA,NA,NA,14,-1146.430065186
+NA,"tc_rfu_season",2665.79,0.349,55.02,NA,0.303,NA,NA,NA,"+",1.148,NA,NA,NA,NA,NA,NA,6,-1326.84171977517
+"+","tc_rfu_reserve",2397.97,0.548,43,NA,0.306,NA,NA,NA,NA,2.427,NA,NA,NA,NA,NA,NA,11,-1187.8102494485
+"+","tc_rfu_season_res",2321.19,0.594,44.76,NA,0.225,NA,NA,NA,"+",1.895,NA,NA,NA,NA,NA,NA,14,-1146.31474130581
